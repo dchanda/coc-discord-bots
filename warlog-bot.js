@@ -11,7 +11,7 @@ var stringify = require('json-stable-stringify');
 
 var discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 var googleCredentials = require(process.env.CONFIGS_DIR + '/googleapi-credentials.json');
-const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');
+const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/warlog-bot-configs.json');
 
 //Initialize Google Auth and get/refresh Token
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', ];

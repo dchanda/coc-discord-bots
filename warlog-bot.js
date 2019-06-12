@@ -15,7 +15,7 @@ const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/warlog-bot-configs.json'
 
 //Initialize Google Auth and get/refresh Token
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', ];
-const TOKEN_PATH = process.env.CONFIGS_DIR + '/trackerbot-googletoken.json';
+const TOKEN_PATH = process.env.CONFIGS_DIR + '/warlogbot-googletoken.json';
 const SPREADSHEET_ID = BOT_CONFIGS.spreadsheetId;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_DEFAULT_CHANNELID = BOT_CONFIGS.defaultChannelId;

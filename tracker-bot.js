@@ -277,7 +277,7 @@ function _announceUpgrades() {
                 currentMemberData.donations = latestDataForMember.donations;
                 currentMemberData.heroicHeist = latestDataForMember.heroicHeist;
 
-                //currentMemberData.save();
+                currentMemberData.save();
                 logger.info('Saving the new Object for - ' + currentMemberData.name);
             } else {
                 logger.info('No upgrades for - ' + currentMemberData.name);

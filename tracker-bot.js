@@ -405,6 +405,7 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
             player.trophies = playerInfo.trophies;
             player.name = playerInfo.name;
             player.townhallLevel = playerInfo.townHallLevel;
+            player.joinDate = joinDate;
 
             playerInfo.achievements.forEach( achievement => {
                 switch(achievement.name) {

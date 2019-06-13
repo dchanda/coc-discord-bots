@@ -255,7 +255,8 @@ function announceUpgrades() {
     playerList = [];
     models.PlayerData.findAll().then( currentMembers => {
         currentMembers.forEach( currentMember => {
-            loadMemberQueue.push(currentMember.tag);
+            if (currentMember.inClan)
+                loadMemberQueue.push(currentMember.tag);
         });
     });
 }

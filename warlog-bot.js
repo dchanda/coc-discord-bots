@@ -2,6 +2,7 @@ const fs = require('fs');
 const logger = require('./utils/logger.js');
 const readline = require('readline');
 const {google} = require('googleapis');
+var async = require('async');
 var Discord = require('discord.io');
 var moment = require('moment-timezone');
 var clashapi = require('./utils/clashapi.js');
@@ -76,6 +77,7 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
+    console.log(bot.channels[channelID].guild_id + "/" + channelID + " : " + message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {

@@ -28,6 +28,7 @@ const CLAIMS = BOT_CONFIGS.claimsTabName;
 
 const LEADERS = [];
 const OFFICERS = [];
+const CHANNELS = {};
 
 const MAINTENANCE = false;
 
@@ -38,7 +39,7 @@ var opponentClanTagUpdater;
 var opponentClanTag = null;
 var previousAttackSummary = null;
 var warLogLastUpdateTime = new Date().getTime();
-
+var responseChannelId = null;
 
 // ------------ TIMERS FOR THE BOT! -------------
 //Check for claims and remind players every 4mins.
@@ -77,7 +78,6 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
-    console.log(bot.channels[channelID].guild_id + "/" + channelID + " : " + message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -137,6 +137,29 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                     authorize(googleCredentials, attack.bind({'channelID': channelID, 'args': args}))
                 break;
          }
+     } else {
+        if (message.indexOf(BOT_CONFIGS.botUserId) >= 0) {
+            responseChannelId = channelID;
+            return;
+        }
+        if (channelID == BOT_CONFIGS.inputChannelId) {
+            if (responseChannelId == null) responseChannelId = BOT_CONFIGS.defaultChannelId;
+            bot.sendMessage({
+                to: responseChannelId,
+                embed: {
+                    color: 13683174,
+                    description: '' + message + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
+                        url: ''
+                    },
+                    title: '',
+                    url: ''
+                }
+            });
+        }
      }
 });
 
@@ -147,6 +170,7 @@ function getServer() {
 function cacheUserRoles(server) {
     var channels = server.channels;
     for(var id in channels) {
+        CHANNELS[channels[id].name] = id;
         console.log(id + " - " + channels[id].name);
     }
     var roles = server.roles;

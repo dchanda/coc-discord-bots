@@ -61,6 +61,7 @@ const SPELL_NAMES = {
 
 // ---- GLOBAL VARIABLES -----
 var playersMap = {};
+var responseChannelId = null;
 
 const saveMemberQueue = async.queue(function(memberTag, callback) {
     _fetchAndSaveMember(memberTag, null, callback);
@@ -96,11 +97,11 @@ bot.on('ready', function (evt) {
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
     cacheMaxLevels();
-    setInterval(function() {
-        checkNewMembers();
-    }, 30000);
+    // setInterval(function() {
+    //     checkNewMembers();
+    // }, 30000);
     //setTimeout(announceUpgrades, 4000);
-    scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
+    // scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -132,6 +133,29 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 rushed(channelID);
                 break;
          }
+     } else {
+        if (message.indexOf(BOT_CONFIGS.botUserId) >= 0) {
+            responseChannelId = channelID;
+            return;
+        }
+        if (channelID == BOT_CONFIGS.inputChannelId) {
+            if (responseChannelId == null) responseChannelId = BOT_CONFIGS.defaultChannelId;
+            bot.sendMessage({
+                to: responseChannelId,
+                embed: {
+                    color: 13683174,
+                    description: '' + message + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
+                        url: ''
+                    },
+                    title: '',
+                    url: ''
+                }
+            });
+        }        
      }
 });
 

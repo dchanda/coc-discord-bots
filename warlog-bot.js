@@ -2,6 +2,7 @@ const fs = require('fs');
 const logger = require('./utils/logger.js');
 const readline = require('readline');
 const {google} = require('googleapis');
+var async = require('async');
 var Discord = require('discord.io');
 var moment = require('moment-timezone');
 var clashapi = require('./utils/clashapi.js');
@@ -27,6 +28,7 @@ const CLAIMS = BOT_CONFIGS.claimsTabName;
 
 const LEADERS = [];
 const OFFICERS = [];
+const CHANNELS = {};
 
 const MAINTENANCE = false;
 
@@ -37,7 +39,7 @@ var opponentClanTagUpdater;
 var opponentClanTag = null;
 var previousAttackSummary = null;
 var warLogLastUpdateTime = new Date().getTime();
-
+var responseChannelId = null;
 
 // ------------ TIMERS FOR THE BOT! -------------
 //Check for claims and remind players every 4mins.
@@ -135,6 +137,29 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                     authorize(googleCredentials, attack.bind({'channelID': channelID, 'args': args}))
                 break;
          }
+     } else {
+        if (message.indexOf(BOT_CONFIGS.botUserId) >= 0) {
+            responseChannelId = channelID;
+            return;
+        }
+        if (channelID == BOT_CONFIGS.inputChannelId) {
+            if (responseChannelId == null) responseChannelId = BOT_CONFIGS.defaultChannelId;
+            bot.sendMessage({
+                to: responseChannelId,
+                embed: {
+                    color: 13683174,
+                    description: '' + message + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
+                        url: ''
+                    },
+                    title: '',
+                    url: ''
+                }
+            });
+        }
      }
 });
 
@@ -145,6 +170,7 @@ function getServer() {
 function cacheUserRoles(server) {
     var channels = server.channels;
     for(var id in channels) {
+        CHANNELS[channels[id].name] = id;
         console.log(id + " - " + channels[id].name);
     }
     var roles = server.roles;

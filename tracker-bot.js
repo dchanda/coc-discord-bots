@@ -81,7 +81,7 @@ var bot = new Discord.Client({
    autorun: true
 });
 
-//Try reconnecting if disconnected. 
+//Try reconnecting if disconnected.
 bot.on('disconnect', function(erMsg, code) {
     logger.warn('----- Bot disconnected from Discord with code', code, 'for reason:', erMsg, '-----');
     bot.connect();
@@ -99,8 +99,8 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 30000);
-    // setTimeout(announceUpgrades, 4000);
-    scheduler.scheduleJob('0 8,12,16,20 * * *', announceUpgrades);
+    //setTimeout(announceUpgrades, 4000);
+    scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -109,7 +109,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
         var cmd = args[0];
-        
+
         args = args.splice(1);
 
         if (MAINTENANCE) {
@@ -189,7 +189,7 @@ function rushed(channelID) {
                     embed: {
                         color: 13683174,
                         description: '' + message_part + '',
-                        footer: { 
+                        footer: {
                             text: ''
                         },
                         thumbnail: {
@@ -204,7 +204,7 @@ function rushed(channelID) {
         if (message == '') {
             if (none)
                 message = 'None!';
-            else 
+            else
                 return;
         }
         bot.sendMessage({
@@ -212,7 +212,7 @@ function rushed(channelID) {
             embed: {
                 color: 13683174,
                 description: '' + message + '',
-                footer: { 
+                footer: {
                     text: ''
                 },
                 thumbnail: {
@@ -249,23 +249,23 @@ function _announceUpgrades() {
                 logger.warn('Latest data not found for player - ' + currentMemberData.tag);
                 return;
             }
-            var latestTroops = latestDataForMember.getTroops();
-            var latestSpells = latestDataForMember.getSpells();
-            //console.log( latestDataForMember.Troops );
-            //console.log( currentMemberData.Troops );
+            var latestTroops = latestDataForMember.Troops;
+            var latestSpells = latestDataForMember.Spells;
             var upgraded = false;
-            for(var troopName in TROOP_NAMES) {                
+            for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
                     message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + latestTroops[troopName] + '\n';
+                    upgraded = true;
                 }
                 currentMemberData.Troops[troopName] = latestTroops[troopName];
             }
             for(var spellName in SPELL_NAMES) {
                 if (latestSpells[spellName] > currentMemberData.Spells[spellName]) {
                     message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + latestSpells[spellName] + '\n';
+                    upgraded = true;
                 }
                 currentMemberData.Spells[spellName] = latestSpells[spellName];
-            } 
+            }
             logger.info('DE Farmed by ' + currentMemberData.name + ': ' + (latestDataForMember.heroicHeist - currentMemberData.heroicHeist))
             if (upgraded) {
                 currentMemberData.donationsReceived = latestDataForMember.donationsReceived;
@@ -284,13 +284,14 @@ function _announceUpgrades() {
             }
         });
         logger.info('Announcing upgrades: ' + message);
+        message = '';
         if ( message != '' ) {
             bot.sendMessage({
                 to: BOT_ANNOUNCE_CHANNELID,
                 embed: {
                     color: 13683174,
                     description: '' + message + '',
-                    footer: { 
+                    footer: {
                         text: ''
                     },
                     thumbnail: {
@@ -299,7 +300,7 @@ function _announceUpgrades() {
                     title: 'Upgrades',
                     url: ''
                 }
-            });            
+            });
         }
         //Clear the map after processing is completed.
         playersMap = {};
@@ -355,7 +356,7 @@ function checkNewMembers() {
                         embed: {
                             color: 13683174,
                             description: '' + message + '',
-                            footer: { 
+                            footer: {
                                 text: ''
                             },
                             thumbnail: {
@@ -364,7 +365,7 @@ function checkNewMembers() {
                             title: '',
                             url: ''
                         }
-                    });            
+                    });
                 }
                 logger.info('' + newMembers + ' joined the clan; ' + membersLeft + ' left the clan');
             });
@@ -477,13 +478,15 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
                     }
                 });
             }
-            player.setTroops(troops);
-            player.setSpells(spells);
 
             if (resultHolder != null) {
+                player.Troops = troops;
+                player.Spells = spells;
                 resultHolder[player.tag] = player;
                 callback();
             } else {
+                player.setTroops(troops);
+                player.setSpells(spells);
                 player.save().then(function() {
                     callback();
                 }).catch(error => {

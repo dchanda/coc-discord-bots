@@ -97,11 +97,11 @@ bot.on('ready', function (evt) {
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
     cacheMaxLevels();
-    // setInterval(function() {
-    //     checkNewMembers();
-    // }, 30000);
+    setInterval(function() {
+        checkNewMembers();
+    }, 30000);
     //setTimeout(announceUpgrades, 4000);
-    // scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
+    scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -177,7 +177,6 @@ function cacheMaxLevels() {
 }
 
 function rushed(channelID) {
-    // models.PlayerData.findAll({include: [{model: models.Troops, as: 'Troops'}, {model: models.Spells, as: 'Spells'}]}).then(currentMembers => {
     models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
         var message = '';
         var lines = 0;
@@ -306,15 +305,36 @@ function _announceUpgrades() {
             } else {
                 logger.info('No upgrades for - ' + currentMemberData.name);
             }
+            if ( (message.match(/\n/g) || []).length > 30 ) {
+                logger.info('Announcing upgrades: ' + message);
+                var tmpMessage = message;
+                message = '';
+                bot.sendMessage({
+                    to: BOT_ANNOUNCE_CHANNELID,
+                    embed: {
+                        color: 13683174,
+                        description: '' + tmpMessage + '',
+                        footer: {
+                            text: ''
+                        },
+                        thumbnail: {
+                            url: ''
+                        },
+                        title: 'Upgrades',
+                        url: ''
+                    }
+                });
+            }
         });
-        logger.info('Announcing upgrades: ' + message);
-        message = '';
         if ( message != '' ) {
+            logger.info('Announcing upgrades: ' + message);
+            var tmpMessage = message;
+            message = '';
             bot.sendMessage({
                 to: BOT_ANNOUNCE_CHANNELID,
                 embed: {
                     color: 13683174,
-                    description: '' + message + '',
+                    description: '' + tmpMessage + '',
                     footer: {
                         text: ''
                     },
@@ -326,6 +346,7 @@ function _announceUpgrades() {
                 }
             });
         }
+        message = '';
         //Clear the map after processing is completed.
         playersMap = {};
     });

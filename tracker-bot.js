@@ -99,8 +99,8 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 30000);
-    setTimeout(announceUpgrades, 4000);
-    //scheduler.scheduleJob('0 8,12,16,20 * * *', announceUpgrades);
+    //setTimeout(announceUpgrades, 4000);
+    scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {

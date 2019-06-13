@@ -249,10 +249,8 @@ function _announceUpgrades() {
                 logger.warn('Latest data not found for player - ' + currentMemberData.tag);
                 return;
             }
-            var latestTroops = latestDataForMember.getTroops();
-            var latestSpells = latestDataForMember.getSpells();
-            //console.log( latestDataForMember.Troops );
-            //console.log( currentMemberData.Troops );
+            var latestTroops = latestDataForMember.Troops;
+            var latestSpells = latestDataForMember.Spells;
             var upgraded = false;
             for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
@@ -279,7 +277,7 @@ function _announceUpgrades() {
                 currentMemberData.donations = latestDataForMember.donations;
                 currentMemberData.heroicHeist = latestDataForMember.heroicHeist;
 
-                //currentMemberData.save();
+                currentMemberData.save();
                 logger.info('Saving the new Object for - ' + currentMemberData.name);
             } else {
                 logger.info('No upgrades for - ' + currentMemberData.name);
@@ -480,13 +478,15 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
                     }
                 });
             }
-            player.setTroops(troops);
-            player.setSpells(spells);
 
             if (resultHolder != null) {
+                player.Troops = troops;
+                player.Spells = spells;
                 resultHolder[player.tag] = player;
                 callback();
             } else {
+                player.setTroops(troops);
+                player.setSpells(spells);
                 player.save().then(function() {
                     callback();
                 }).catch(error => {

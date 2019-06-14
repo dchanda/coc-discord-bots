@@ -15,7 +15,7 @@ const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
 const MAX_TROOPS = {};
 const MAX_SPELLS = {};
 
-const MAINTENANCE = false;
+const MAINTENANCE = BOT_CONFIGS.maintenance;
 
 const TROOP_NAMES = {
     barbarian: 'Barbarian',
@@ -100,7 +100,7 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 30000);
-    //setTimeout(announceUpgrades, 4000);
+    // setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
 });
 
@@ -202,11 +202,12 @@ function rushed(channelID) {
                     }
                 }
             }
-            if (lines >= 50) {
+            if (lines >= 50 && !MAINTENANCE) {
                 var message_part = message;
                 message = '';
                 lines = 0;
                 none = false;
+                logger.debug('Rushed Message Part: ' + message);
                 bot.sendMessage({
                     to: channelID,
                     embed: {
@@ -230,21 +231,24 @@ function rushed(channelID) {
             else
                 return;
         }
-        bot.sendMessage({
-            to: channelID,
-            embed: {
-                color: 13683174,
-                description: '' + message + '',
-                footer: {
-                    text: ''
-                },
-                thumbnail: {
+        logger.debug('Rushed Message Final: ' + message);
+        if (!MAINTENANCE) {
+            bot.sendMessage({
+                to: channelID,
+                embed: {
+                    color: 13683174,
+                    description: '' + message + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
+                        url: ''
+                    },
+                    title: 'Rushed members',
                     url: ''
-                },
-                title: 'Rushed members',
-                url: ''
-            }
-        });
+                }
+            });
+        }
     })
 }
 
@@ -276,38 +280,49 @@ function _announceUpgrades() {
             var latestTroops = latestDataForMember.Troops;
             var latestSpells = latestDataForMember.Spells;
             var upgraded = false;
+            var troopUpdates = {};
+            var spellUpdates = {};
+            if (latestDataForMember.townhallLevel > currentMemberData.townhallLevel) {
+                upgraded = true;
+                message += '' + currentMemberData.name + ' upgraded Town Hall to ' + latestDataForMember.townhallLevel + '\n';
+            }
             for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
                     message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + latestTroops[troopName] + '\n';
                     upgraded = true;
+                    troopUpdates[troopName] = latestTroops[troopName];
                 }
-                currentMemberData.Troops[troopName] = latestTroops[troopName];
             }
+            logger.debug('Troop Upgrades for ' + currentMemberData.name + ": " + troopUpdates);
             for(var spellName in SPELL_NAMES) {
                 if (latestSpells[spellName] > currentMemberData.Spells[spellName]) {
                     message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + latestSpells[spellName] + '\n';
                     upgraded = true;
+                    spellUpdates[spellName] = latestSpells[spellName];
                 }
-                currentMemberData.Spells[spellName] = latestSpells[spellName];
             }
             logger.info('DE Farmed by ' + currentMemberData.name + ': ' + (latestDataForMember.heroicHeist - currentMemberData.heroicHeist))
             if (upgraded) {
-                currentMemberData.donationsReceived = latestDataForMember.donationsReceived;
-                currentMemberData.trophies = latestDataForMember.trophies;
-                currentMemberData.name = latestDataForMember.name;
-                currentMemberData.townhallLevel = latestDataForMember.townHallLevel;
-                currentMemberData.goldGrab = latestDataForMember.goldGrab;
-                currentMemberData.elixirEscapade = latestDataForMember.elixirEscapade;
-                currentMemberData.donations = latestDataForMember.donations;
-                currentMemberData.heroicHeist = latestDataForMember.heroicHeist;
+                var updates = {};
+                updates.donationsReceived = latestDataForMember.donationsReceived;
+                updates.trophies = latestDataForMember.trophies;
+                updates.name = latestDataForMember.name;
+                updates.townhallLevel = latestDataForMember.townhallLevel;
+                updates.goldGrab = latestDataForMember.goldGrab;
+                updates.elixirEscapade = latestDataForMember.elixirEscapade;
+                updates.donations = latestDataForMember.donations;
+                updates.heroicHeist = latestDataForMember.heroicHeist;
 
-                currentMemberData.save();
+                currentMemberData.Troops.update(troopUpdates);
+                currentMemberData.Spells.update(spellUpdates);
+                currentMemberData.update(updates);
                 logger.info('Saving the new Object for - ' + currentMemberData.name);
             } else {
                 logger.info('No upgrades for - ' + currentMemberData.name);
             }
-            if ( (message.match(/\n/g) || []).length > 30 ) {
-                logger.info('Announcing upgrades: ' + message);
+
+            if ( (message.match(/\n/g) || []).length > 30 && !MAINTENANCE) {
+                logger.info('Announcing upgrades Part: ' + message);
                 var tmpMessage = message;
                 message = '';
                 bot.sendMessage({
@@ -327,8 +342,8 @@ function _announceUpgrades() {
                 });
             }
         });
-        if ( message != '' ) {
-            logger.info('Announcing upgrades: ' + message);
+        logger.info('Announcing upgrades Final: ' + message);
+        if ( message != '' && !MAINTENANCE) {
             var tmpMessage = message;
             message = '';
             bot.sendMessage({
@@ -472,7 +487,8 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
                         break;
                 }
             });
-            playerInfo.troops.forEach( troop => {
+            playerInfo.troops.forEach( troop => { 
+                if (troop.village == 'builderBase') return;
                 switch(troop.name) {
                     case 'Barbarian': troops.barbarian = troop.level; break;
                     case 'Archer': troops.archer = troop.level; break;

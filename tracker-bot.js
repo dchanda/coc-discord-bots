@@ -130,7 +130,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 help(channelID);
                 break;
             case 'rushed':
-                rushed(channelID);
+                rushed(channelID, args);
                 break;
          }
      } else {
@@ -155,7 +155,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                     url: ''
                 }
             });
-        }        
+        }
      }
 });
 
@@ -176,12 +176,19 @@ function cacheMaxLevels() {
     });
 }
 
-function rushed(channelID) {
+function rushed(channelID, args) {
+    var memberName = null;
+    if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
+    var message = '';
     models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
-        var message = '';
         var lines = 0;
         var none = true;
         currentMembers.forEach( member => {
+            if ( memberName != null) {
+                if (! member.name.toLowerCase().includes(memberName)) {
+                    return;
+                }
+            }
             if (member.townhallLevel > 1) {
                 var maxTroops = MAX_TROOPS[member.townhallLevel-1];
                 var maxSpells = MAX_SPELLS[member.townhallLevel-1];
@@ -207,7 +214,7 @@ function rushed(channelID) {
                 message = '';
                 lines = 0;
                 none = false;
-                logger.debug('Rushed Message Part: ' + message);
+                logger.debug('Rushed Message Part: ' + message_part);
                 bot.sendMessage({
                     to: channelID,
                     embed: {
@@ -233,11 +240,12 @@ function rushed(channelID) {
         }
         logger.debug('Rushed Message Final: ' + message);
         if (!MAINTENANCE) {
+            var message_final = message;
             bot.sendMessage({
                 to: channelID,
                 embed: {
                     color: 13683174,
-                    description: '' + message + '',
+                    description: '' + message_final + '',
                     footer: {
                         text: ''
                     },
@@ -487,7 +495,7 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
                         break;
                 }
             });
-            playerInfo.troops.forEach( troop => { 
+            playerInfo.troops.forEach( troop => {
                 if (troop.village == 'builderBase') return;
                 switch(troop.name) {
                     case 'Barbarian': troops.barbarian = troop.level; break;

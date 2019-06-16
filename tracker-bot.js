@@ -184,6 +184,7 @@ function rushed(channelID, args) {
         var lines = 0;
         var none = true;
         currentMembers.forEach( member => {
+            if (!member.inClan) return;
             if ( memberName != null) {
                 if (! member.name.toLowerCase().includes(memberName)) {
                     return;
@@ -219,7 +220,7 @@ function rushed(channelID, args) {
                     to: channelID,
                     embed: {
                         color: 13683174,
-                        description: '' + message_part + '',
+                        description: message_part,
                         footer: {
                             text: ''
                         },

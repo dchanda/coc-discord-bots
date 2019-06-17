@@ -221,6 +221,7 @@ function memberDate(channelID, args) {
                 to: channelID,
                 message: message_part
             });
+            await sleep(100);
         });
     });
 }
@@ -632,4 +633,8 @@ function getCurrentData(callback) {
         });
         callback(liveData);
     });
+}
+
+const sleep = (milliseconds) => {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
 }

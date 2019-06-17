@@ -189,6 +189,10 @@ function memberDate(channelID, args) {
         var message = '';
         var now = moment(new Date());
         currentMembers.forEach(member => {
+            if (memberName != null) {
+                if (memberName.toLowerCase() != member.name.toLowerCase())
+                    return;
+            }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
             message += member.name + ' joined us ' + duration.months() + ' months, ' + duration.days() + ' days ago.\n';
@@ -201,6 +205,21 @@ function memberDate(channelID, args) {
 
         message_parts.forEach(message_part => {
             logger.debug("Message Part: " + message_part);
+            bot.sendMessage({
+                to: channelID,
+                embed: {
+                    color: 13683174,
+                    description: '' + message_part + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
+                        url: ''
+                    },
+                    title: 'Our Trusted Members: ',
+                    url: ''
+                }
+            });
         });
     });
 }

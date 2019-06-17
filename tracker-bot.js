@@ -196,7 +196,8 @@ function memberDate(channelID, args) {
             }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += '**' + member.name + '** joined us ';
+            message += '**' + member.name + '** joined us on ';
+            message += joinDate.format('MMM Do YYYY') + ' (';
             if (duration.years() > 0)
                 message += duration.years() + ' years ';
             if (duration.months() > 0)
@@ -205,7 +206,7 @@ function memberDate(channelID, args) {
                 message += duration.days() + ' days ';
             if (duration.days()==0 && duration.months()==0)
                 message += duration.hours() + ' hours ';
-            message += ' ago.\n';
+            message += ' ago)\n';
             if ( (message.match(/\n/g) || []).length > 40 ) {
                 message_parts.push(message);
                 message = '';

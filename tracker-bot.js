@@ -196,7 +196,7 @@ function memberDate(channelID, args) {
             }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += ':tada:' + member.name + ' joined us ';
+            message += '**' + member.name + '** joined us ';
             if (duration.years() > 0)
                 message += duration.years() + ' years ';
             if (duration.months() > 0)

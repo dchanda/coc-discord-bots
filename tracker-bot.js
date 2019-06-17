@@ -130,7 +130,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 help(channelID);
                 break;
             case 'rushed':
-                rushed(channelID, args);
+                //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
+                    rushed(channelID, args);
+                break;
+            case 'date':
+                //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
+                    memberDate(channelID, args);
                 break;
          }
      } else {
@@ -172,6 +177,17 @@ function cacheMaxLevels() {
     models.SpellMaximums.findAll().then( maxSpells => {
         maxSpells.forEach( maxSpell => {
             MAX_SPELLS[maxSpell.townhallLevel] = maxSpell;
+        });
+    });
+}
+
+function memberDate(channelID, args) {
+    var memberName = null;
+    if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
+
+    models.PlayerData.findAll().then(currentMembers => {
+        currentMembers.forEach(member => {
+            logger.debug(member.joinDate);
         });
     });
 }

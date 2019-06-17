@@ -9,6 +9,8 @@ var moment = require('moment-timezone');
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');
 
+const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
+
 const CLAN_TAG = BOT_CONFIGS.thisClanTag;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
@@ -102,6 +104,7 @@ bot.on('ready', function (evt) {
     }, 30000);
     // setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
+    scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -131,7 +134,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'rushed':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
-                    rushed(channelID, args);
+                    rushed(channelID, args, false);
                 break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -179,6 +182,17 @@ function cacheMaxLevels() {
             MAX_SPELLS[maxSpell.townhallLevel] = maxSpell;
         });
     });
+}
+
+function checkClanJoinDates() {
+    var today = moment(new Date());
+    //Check 6 month anniversary
+    if (today.isAfter(CLAN_BIRTHDAY.add(180, 'D')) && today.isBefore(CLAN_BIRTHDAY.add(181, 'D'))) {
+        bot.sendMessage({
+            to: BOT_ANNOUNCE_CHANNELID,
+            message: '@everyone, Congratulations on 6 Month Anniversary! Good going!'
+        });
+    }
 }
 
 function memberDate(channelID, args) {
@@ -229,7 +243,7 @@ function memberDate(channelID, args) {
     });
 }
 
-function rushed(channelID, args) {
+function rushed(channelID, args, thUpgraded) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
     var message = '';
@@ -241,6 +255,9 @@ function rushed(channelID, args) {
                 if (! member.name.toLowerCase().includes(memberName)) {
                     return;
                 }
+            }
+            if (thUpgraded) {
+                message += member.name + ' upgraded Town Hall to level ' + member.townhallLevel + '\n';
             }
             if (member.townhallLevel > 1) {
                 var maxTroops = MAX_TROOPS[member.townhallLevel-1];
@@ -282,7 +299,7 @@ function rushed(channelID, args) {
                         thumbnail: {
                             url: ''
                         },
-                        title: 'Rushed members',
+                        title: (thUpgraded) ? 'TH Upgraded Members': 'Rushed members',
                         url: ''
                     }
                 });
@@ -311,10 +328,19 @@ function announceUpgrades() {
     });
 }
 
+function checkRushed(memberNames){
+    setTimeout(function() {
+        memberNames.forEach(memberName => {
+            rushed(BOT_ANNOUNCE_CHANNELID, [memberName], true);
+        });
+    }, 10);
+}
+
 function _announceUpgrades() {
     //This will be called after all the player data has been loaded from Clash API.
     models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
         var message = '';
+        var thUpgradedMembers = [];
         currentMembers.forEach( currentMemberData => {
             logger.info('Comparing data for - ' + currentMemberData.name);
 
@@ -331,6 +357,7 @@ function _announceUpgrades() {
             if (latestDataForMember.townhallLevel > currentMemberData.townhallLevel) {
                 upgraded = true;
                 message += '' + currentMemberData.name + ' upgraded Town Hall to ' + latestDataForMember.townhallLevel + '\n';
+                thUpgradedMembers.push(curreMemberData.name);
             }
             for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
@@ -389,6 +416,8 @@ function _announceUpgrades() {
             }
         });
         logger.info('Announcing upgrades Final: ' + message);
+        logger.info('Following members upgraded TH: ' + thUpgradedMembers);
+        checkRushed(thUpgradedMembers);
         if ( message != '' && !MAINTENANCE) {
             var tmpMessage = message;
             message = '';

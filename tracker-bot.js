@@ -213,8 +213,10 @@ function rushed(channelID, args) {
                 message = '';
             }
         });
-
+        logger.debug('Rushed message final: ' + message);
+        message_parts.push(message);
         if (!MAINTENANCE) {
+            logger.info('Found '+message_parts.length + ' pages of message');
             message_parts.forEach(message_part => {
                 bot.sendMessage({
                     to: channelID,

@@ -196,16 +196,16 @@ function memberDate(channelID, args) {
             }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += '**' + member.name + '** joined us on ';
-            message += joinDate.format('MMM Do YYYY') + ' (';
+            message += '**' + member.name + '** joined us on **';
+            message += joinDate.format('MMM Do YYYY') + '** (';
             if (duration.years() > 0)
-                message += duration.years() + ' yrs ';
+                message += duration.years() + 'yrs ';
             if (duration.months() > 0)
-                message += duration.months() + ' m ';
+                message += duration.months() + 'm ';
             if (duration.days() > 0)
-                message += duration.days() + ' d ';
+                message += duration.days() + 'd ';
             if (duration.days()==0 && duration.months()==0)
-                message += duration.hours() + ' hrs ';
+                message += duration.hours() + 'hrs ';
             message += 'ago)\n';
             if ( (message.match(/\n/g) || []).length > 30 ) {
                 message_parts.push(message);

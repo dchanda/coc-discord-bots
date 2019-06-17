@@ -4,7 +4,7 @@ var clashapi = require('./utils/clashapi.js')
 var Discord = require('discord.io');
 var async = require('async');
 var scheduler = require('node-schedule');
-
+var moment = require('moment-timezone');
 
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');

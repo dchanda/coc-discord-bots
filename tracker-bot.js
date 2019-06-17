@@ -191,7 +191,7 @@ function memberDate(channelID, args) {
         currentMembers.forEach(member => {
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += member.name + ' joined us ' + duration.months + ' months, ' + duration.days + ' days ago.\n';
+            message += member.name + ' joined us ' + duration.months() + ' months, ' + duration.days() + ' days ago.\n';
             if ( (message.match(/\n/g) || []).length > 40 ) {
                 message_parts.push(message);
                 message = '';

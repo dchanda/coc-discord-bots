@@ -185,6 +185,7 @@ function memberDate(channelID, args) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
     var message_parts = [];
+    currentMembers.sort(dateComparator);
     models.PlayerData.findAll().then(currentMembers => {
         var message = '';
         var now = moment(new Date());
@@ -284,6 +285,12 @@ function rushed(channelID, args) {
             });
         }
     });
+}
+
+function dateComparator(member1, member2) {
+    if (member1.isAfter(member2)) return 1;
+    if (member2.isAfter(member1)) return -1;
+    return 0;
 }
 
 function announceUpgrades() {

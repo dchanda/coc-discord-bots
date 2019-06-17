@@ -215,13 +215,16 @@ function memberDate(channelID, args) {
         });
         message_parts.push(message);
 
+        var sleepDuration = 5;
         message_parts.forEach(message_part => {
             logger.debug("Message Part: " + message_part);
-            bot.sendMessage({
-                to: channelID,
-                message: message_part
+            sleep(sleepDuration).then(() => {
+                bot.sendMessage({
+                    to: channelID,
+                    message: message_part
+                });
             });
-            await sleep(100);
+            sleepDuration += 100;
         });
     });
 }

@@ -189,13 +189,23 @@ function memberDate(channelID, args) {
         var message = '';
         var now = moment(new Date());
         currentMembers.forEach(member => {
+            if (!member.inClan) return;
             if (memberName != null) {
                 if (memberName.toLowerCase() != member.name.toLowerCase())
                     return;
             }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += member.name + ' joined us ' + duration.months() + ' months, ' + duration.days() + ' days ago.\n';
+            message += member.name + ' joined us ';
+            if (duration.years() > 0)
+                message += duration.years() + ' years ';
+            if (duration.months() > 0)
+                message += duration.months() + ' months ';
+            if (duration.days() > 0)
+                message += duration.days() + ' days ';
+            if (duration.days()==0 && duration.months()==0)
+                message += duration.hours() + ' hours ';
+            message += ' ago.\n';
             if ( (message.match(/\n/g) || []).length > 40 ) {
                 message_parts.push(message);
                 message = '';

@@ -187,7 +187,8 @@ function memberDate(channelID, args) {
 
     models.PlayerData.findAll().then(currentMembers => {
         currentMembers.forEach(member => {
-            logger.debug(member.joinDate);
+            var joinDate = moment(member.joinDate);
+            logger.debug(member.joinDate + ' == ' + joinDate.toDate());
         });
     });
 }

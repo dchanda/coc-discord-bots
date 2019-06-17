@@ -184,11 +184,23 @@ function cacheMaxLevels() {
 function memberDate(channelID, args) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
-
+    var message_parts = [];
     models.PlayerData.findAll().then(currentMembers => {
+        var message = '';
+        var now = moment(new Date());
         currentMembers.forEach(member => {
             var joinDate = moment(member.joinDate);
-            logger.debug(member.joinDate + ' == ' + joinDate.toDate());
+            var duration = moment.duration(now.diff(joinDate));
+            message += member.name + ' joined us ' + duration.months + ' months, ' + duration.days + ' days ago.\n';
+            if ( (message.match(/\n/g) || []).length > 40 ) {
+                message_parts.push(message);
+                message = '';
+            }
+        });
+        message_parts.push(message);
+
+        message_parts.forEach(message_part => {
+            logger.debug("Message Part: " + message_part);
         });
     });
 }

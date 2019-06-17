@@ -222,7 +222,7 @@ function rushed(channelID, args) {
                     to: channelID,
                     embed: {
                         color: 13683174,
-                        description: '' + message_final + '',
+                        description: '' + message_part + '',
                         footer: {
                             text: ''
                         },

@@ -180,9 +180,8 @@ function rushed(channelID, args) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
     var message = '';
+    var message_parts = [];
     models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
-        var lines = 0;
-        var none = true;
         currentMembers.forEach( member => {
             if (!member.inClan) return;
             if ( memberName != null) {
@@ -200,27 +199,28 @@ function rushed(channelID, args) {
                 for(var troopName in TROOP_NAMES) {
                     if (playerTroops[troopName]  < maxTroops[troopName]) {
                         message += member.name + ' is Rushed (' + TROOP_NAMES[troopName] + ' is low).\n';
-                        lines++;
                     }
                 }
                 for(var spellName in SPELL_NAMES) {
                     if (playerSpells[spellName]  < maxSpells[spellName]) {
                         message += member.name + ' is Rushed (' + SPELL_NAMES[spellName] + ' is low).\n';
-                        lines++;
                     }
                 }
             }
-            if (lines >= 50 && !MAINTENANCE) {
-                var message_part = message;
+            if ( (message.match(/\n/g) || []).length > 40 ) {
+                logger.debug('Rushed message part: ' + message);
+                message_parts.push(message);
                 message = '';
-                lines = 0;
-                none = false;
-                logger.debug('Rushed Message Part: ' + message_part);
+            }
+        });
+
+        if (!MAINTENANCE) {
+            message_parts.forEach(message_part => {
                 bot.sendMessage({
                     to: channelID,
                     embed: {
                         color: 13683174,
-                        description: message_part,
+                        description: '' + message_final + '',
                         footer: {
                             text: ''
                         },
@@ -231,36 +231,10 @@ function rushed(channelID, args) {
                         url: ''
                     }
                 });
-            }
-        });
-        if (message == '') {
-            if (none)
-                message = 'None!';
-            else
-                return;
-        }
-        logger.debug('Rushed Message Final: ' + message);
-        if (!MAINTENANCE) {
-            var message_final = message;
-            bot.sendMessage({
-                to: channelID,
-                embed: {
-                    color: 13683174,
-                    description: '' + message_final + '',
-                    footer: {
-                        text: ''
-                    },
-                    thumbnail: {
-                        url: ''
-                    },
-                    title: 'Rushed members',
-                    url: ''
-                }
             });
         }
-    })
+    });
 }
-
 
 function announceUpgrades() {
     logger.info('Started thread for announcing upgrades.');

@@ -199,14 +199,14 @@ function memberDate(channelID, args) {
             message += '**' + member.name + '** joined us on ';
             message += joinDate.format('MMM Do YYYY') + ' (';
             if (duration.years() > 0)
-                message += duration.years() + ' years ';
+                message += duration.years() + ' yrs ';
             if (duration.months() > 0)
-                message += duration.months() + ' months ';
+                message += duration.months() + ' m ';
             if (duration.days() > 0)
-                message += duration.days() + ' days ';
+                message += duration.days() + ' d ';
             if (duration.days()==0 && duration.months()==0)
-                message += duration.hours() + ' hours ';
-            message += ' ago)\n';
+                message += duration.hours() + ' hrs ';
+            message += 'ago)\n';
             if ( (message.match(/\n/g) || []).length > 30 ) {
                 message_parts.push(message);
                 message = '';

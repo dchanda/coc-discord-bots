@@ -185,10 +185,10 @@ function memberDate(channelID, args) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
     var message_parts = [];
-    currentMembers.sort(dateComparator);
     models.PlayerData.findAll().then(currentMembers => {
         var message = '';
         var now = moment(new Date());
+        curentMembers = currentMembers.sort(dateComparator);
         currentMembers.forEach(member => {
             if (!member.inClan) return;
             if (memberName != null) {

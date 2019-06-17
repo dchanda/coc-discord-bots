@@ -196,7 +196,7 @@ function memberDate(channelID, args) {
             }
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            message += member.name + ' joined us ';
+            message += ':tada:' + member.name + ' joined us ';
             if (duration.years() > 0)
                 message += duration.years() + ' years ';
             if (duration.months() > 0)
@@ -217,18 +217,7 @@ function memberDate(channelID, args) {
             logger.debug("Message Part: " + message_part);
             bot.sendMessage({
                 to: channelID,
-                embed: {
-                    color: 13683174,
-                    description: '' + message_part + '',
-                    footer: {
-                        text: ''
-                    },
-                    thumbnail: {
-                        url: ''
-                    },
-                    title: 'Our Trusted Members: ',
-                    url: ''
-                }
+                message: message_part
             });
         });
     });

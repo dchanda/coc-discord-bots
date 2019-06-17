@@ -4,7 +4,7 @@ var clashapi = require('./utils/clashapi.js')
 var Discord = require('discord.io');
 var async = require('async');
 var scheduler = require('node-schedule');
-
+var moment = require('moment-timezone');
 
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');
@@ -130,7 +130,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 help(channelID);
                 break;
             case 'rushed':
-                rushed(channelID);
+                //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
+                    rushed(channelID, args);
+                break;
+            case 'date':
+                //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
+                    memberDate(channelID, args);
                 break;
          }
      } else {
@@ -155,7 +160,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                     url: ''
                 }
             });
-        }        
+        }
      }
 });
 
@@ -176,12 +181,64 @@ function cacheMaxLevels() {
     });
 }
 
-function rushed(channelID) {
-    models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
+function memberDate(channelID, args) {
+    var memberName = null;
+    if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
+    var message_parts = [];
+    models.PlayerData.findAll().then(currentMembers => {
         var message = '';
-        var lines = 0;
-        var none = true;
+        var now = moment(new Date());
+        curentMembers = currentMembers.sort(dateComparator);
+        currentMembers.forEach(member => {
+            if (!member.inClan) return;
+            if (memberName != null) {
+                if (memberName.toLowerCase() != member.name.toLowerCase())
+                    return;
+            }
+            var joinDate = moment(member.joinDate);
+            var duration = moment.duration(now.diff(joinDate));
+            message += '**' + member.name + '** joined us on **';
+            message += joinDate.format('MMM Do YYYY') + '** (';
+            if (duration.years() > 0)
+                message += duration.years() + 'yrs ';
+            if (duration.months() > 0)
+                message += duration.months() + 'm ';
+            if (duration.days() > 0)
+                message += duration.days() + 'd ';
+            if (duration.days()==0 && duration.months()==0)
+                message += duration.hours() + 'hrs ';
+            message += 'ago)\n';
+            if ( (message.match(/\n/g) || []).length > 30 ) {
+                message_parts.push(message);
+                message = '';
+            }
+        });
+        message_parts.push(message);
+
+        message_parts.forEach(message_part => {
+            logger.debug("Message Part: " + message_part);
+            bot.sendMessage({
+                to: channelID,
+                message: message_part
+            });
+            await sleep(100);
+        });
+    });
+}
+
+function rushed(channelID, args) {
+    var memberName = null;
+    if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
+    var message = '';
+    var message_parts = [];
+    models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
         currentMembers.forEach( member => {
+            if (!member.inClan) return;
+            if ( memberName != null) {
+                if (! member.name.toLowerCase().includes(memberName)) {
+                    return;
+                }
+            }
             if (member.townhallLevel > 1) {
                 var maxTroops = MAX_TROOPS[member.townhallLevel-1];
                 var maxSpells = MAX_SPELLS[member.townhallLevel-1];
@@ -192,22 +249,25 @@ function rushed(channelID) {
                 for(var troopName in TROOP_NAMES) {
                     if (playerTroops[troopName]  < maxTroops[troopName]) {
                         message += member.name + ' is Rushed (' + TROOP_NAMES[troopName] + ' is low).\n';
-                        lines++;
                     }
                 }
                 for(var spellName in SPELL_NAMES) {
                     if (playerSpells[spellName]  < maxSpells[spellName]) {
                         message += member.name + ' is Rushed (' + SPELL_NAMES[spellName] + ' is low).\n';
-                        lines++;
                     }
                 }
             }
-            if (lines >= 50 && !MAINTENANCE) {
-                var message_part = message;
+            if ( (message.match(/\n/g) || []).length > 40 ) {
+                logger.debug('Rushed message part: ' + message);
+                message_parts.push(message);
                 message = '';
-                lines = 0;
-                none = false;
-                logger.debug('Rushed Message Part: ' + message);
+            }
+        });
+        logger.debug('Rushed message final: ' + message);
+        message_parts.push(message);
+        if (!MAINTENANCE) {
+            logger.info('Found '+message_parts.length + ' pages of message');
+            message_parts.forEach(message_part => {
                 bot.sendMessage({
                     to: channelID,
                     embed: {
@@ -223,35 +283,18 @@ function rushed(channelID) {
                         url: ''
                     }
                 });
-            }
-        });
-        if (message == '') {
-            if (none)
-                message = 'None!';
-            else
-                return;
-        }
-        logger.debug('Rushed Message Final: ' + message);
-        if (!MAINTENANCE) {
-            bot.sendMessage({
-                to: channelID,
-                embed: {
-                    color: 13683174,
-                    description: '' + message + '',
-                    footer: {
-                        text: ''
-                    },
-                    thumbnail: {
-                        url: ''
-                    },
-                    title: 'Rushed members',
-                    url: ''
-                }
             });
         }
-    })
+    });
 }
 
+function dateComparator(member1, member2) {
+    mem1Date = moment(member1.joinDate);
+    mem2Date = moment(member2.joinDate);
+    if (mem1Date.isAfter(mem2Date)) return 1;
+    if (mem2Date.isAfter(mem1Date)) return -1;
+    return 0;
+}
 
 function announceUpgrades() {
     logger.info('Started thread for announcing upgrades.');
@@ -487,7 +530,7 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
                         break;
                 }
             });
-            playerInfo.troops.forEach( troop => { 
+            playerInfo.troops.forEach( troop => {
                 if (troop.village == 'builderBase') return;
                 switch(troop.name) {
                     case 'Barbarian': troops.barbarian = troop.level; break;
@@ -590,4 +633,8 @@ function getCurrentData(callback) {
         });
         callback(liveData);
     });
+}
+
+const sleep = (milliseconds) => {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
 }

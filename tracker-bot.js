@@ -288,8 +288,10 @@ function rushed(channelID, args) {
 }
 
 function dateComparator(member1, member2) {
-    if (member1.isAfter(member2)) return 1;
-    if (member2.isAfter(member1)) return -1;
+    mem1Date = moment(member1.joinDate);
+    mem2Date = moment(member2.joinDate);
+    if (mem1Date.isAfter(mem2Date)) return 1;
+    if (mem2Date.isAfter(mem1Date)) return -1;
     return 0;
 }
 

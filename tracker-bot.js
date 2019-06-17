@@ -207,7 +207,7 @@ function memberDate(channelID, args) {
             if (duration.days()==0 && duration.months()==0)
                 message += duration.hours() + ' hours ';
             message += ' ago)\n';
-            if ( (message.match(/\n/g) || []).length > 40 ) {
+            if ( (message.match(/\n/g) || []).length > 30 ) {
                 message_parts.push(message);
                 message = '';
             }

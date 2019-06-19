@@ -282,7 +282,7 @@ function _updateWarLog(err, attackSummary) {
         for(var i=0; i<playersData.length; i++) {
             var playerTag = playersData[i][1];
             if (claims && claims[i] && claims[i][0] != '') {
-                updateData.push({range: WAR_LOG+'E'+(i+5), values: [['']]});
+                updateData.push({range: WAR_LOG+'!E'+(i+5), values: [['']]});
             }
             if (playerTag in attackSummary) {
                 var playerAttacks = attackSummary[playerTag];

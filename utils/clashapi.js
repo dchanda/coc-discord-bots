@@ -110,26 +110,35 @@ function getAttackSummary(clanTag, opponentClanTag, callback) {
             // callback('Preperation Phase', null);
             return;
         }
-        var members = responseJson['opponent']['members'];
-        members.map( (member) => {
-            attackSummary[member.tag] = {};
-            if (member.attacks) {
-                attackSummary[member.tag]['attack1'] = member.attacks[0].stars;
-                if (member.attacks.length > 1)
-                    attackSummary[member.tag]['attack2'] = member.attacks[1].stars;
-            }
-        });
 
         var opponentMembers = responseJson.clan.members;
+        var opponentMembersMapPosition = {};
         var baseStatus = [];
         opponentMembers = opponentMembers.sort(compareMembers);
         for(var i=0; i<opponentMembers.length; i++) {
+            opponentMembersMapPosition[opponentMembers[i].tag] = opponentMembers[i].mapPosition;
             if ('bestOpponentAttack' in opponentMembers[i]) {
                 baseStatus.push(opponentMembers[i].bestOpponentAttack.stars);
             } else 
                 baseStatus.push(null);
         }
         attackSummary['baseStatus'] = baseStatus;
+
+        var members = responseJson['opponent']['members'];
+        members.map( (member) => {
+            attackSummary[member.tag] = {};
+            if (member.attacks) {
+                attackSummary[member.tag]['attack1'] = {};
+                attackSummary[member.tag]['attack1']['stars'] = member.attacks[0].stars;
+                attackSummary[member.tag]['attack1']['base'] = opponentMembersMapPosition[member.attacks[0].defenderTag];
+                if (member.attacks.length > 1) {
+                    attackSummary[member.tag]['attack2'] = {};
+                    attackSummary[member.tag]['attack2']['stars'] = member.attacks[1].stars;
+                    attackSummary[member.tag]['attack2']['base'] = opponentMembersMapPosition[member.attacks[1].defenderTag];
+                }
+            }
+        });
+
         callback(null, attackSummary);
     });
 }

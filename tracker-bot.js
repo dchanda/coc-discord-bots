@@ -357,7 +357,7 @@ function _announceUpgrades() {
             if (latestDataForMember.townhallLevel > currentMemberData.townhallLevel) {
                 upgraded = true;
                 message += '' + currentMemberData.name + ' upgraded Town Hall to ' + latestDataForMember.townhallLevel + '\n';
-                thUpgradedMembers.push(curreMemberData.name);
+                thUpgradedMembers.push(currentMemberData.name);
             }
             for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {

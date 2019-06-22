@@ -279,14 +279,14 @@ function _updateWarLog(err, attackSummary) {
         var warLogUpdate = [];
         var messages = [];
         var updateData = [];
-        var resolvedClaims = [];
+        var resolvedClaims = []; // Array of Arrays - [PlayerName, DiscordId, ClaimedNum., StarsGained]
         for(var i=0; i<playersData.length; i++) {
             var playerTag = playersData[i][1];
             if (playerTag in attackSummary) {
                 var playerAttacks = attackSummary[playerTag];
                 if ('attack1' in playerAttacks) {
                     if (claims && claims[i] && claims[i][0] != '' && ''+claims[i][0] == ''+playerAttacks.attack1.base) {
-                        if (playersData[i].length>3) resolvedClaims.push([playesData[i][0], playersData[i][3], claims[i][0]], playerAttacks.attack1.stars);
+                        if (playersData[i].length>3) resolvedClaims.push([playersData[i][0], playersData[i][3], claims[i][0]], playerAttacks.attack1.stars);
                         updateData.push({range: WAR_LOG+'!E'+(i+5), values: [['']]});
                     }
                     if ('attack2' in playerAttacks) {
@@ -327,17 +327,27 @@ function _updateWarLog(err, attackSummary) {
             logger.info('Successfully updated war log.');
             warLogLastUpdateTime = new Date().getTime();
         });
+        var sleepDuration = 0;
         resolvedClaims.forEach(resolvedClaim => {
-            if (resolvedClaim[3] == 3)
-                bot.sendMessage({
-                    to: BOT_DEFAULT_CHANNELID,
-                    message: '<@' + resolvedClaim[1] + '> Goodjob by ' + resolvedClaim[0] + ' on #' + resolvedClaim[2] + '!'
+            if ( !resolvedClaim[1] ) return;
+            if (resolvedClaim[3] == 3) {
+                var msg = '<@' + resolvedClaim[1] + '> Goodjob by ' + resolvedClaim[0] + ' on #' + resolvedClaim[2] + '!';
+                sleep(sleepDuration).then(() => {
+                    bot.sendMessage({
+                        to: BOT_DEFAULT_CHANNELID,
+                        message: msg
+                    });
                 });
-            else 
-                bot.sendMessage({
-                    to: BOT_DEFAULT_CHANNELID,
-                    message: '<@' + resolvedClaim[1] + '> Tough break on #' + resolvedClaim[2] + '! Better luck next time!'
+            } else {
+                var msg = '<@' + resolvedClaim[1] + '> Tough break on #' + resolvedClaim[2] + '! Better luck next time!';
+                sleep(sleepDuration).then(() => { 
+                    bot.sendMessage({
+                        to: BOT_DEFAULT_CHANNELID,
+                        message: msg
+                    });
                 });
+            }
+            sleepDuration += 5;
         });
         logger.info('Updating war log...');
     });
@@ -1159,4 +1169,9 @@ function compareMaps(map1, map2) {
         }
     }
     return true;
+}
+
+
+const sleep = (milliseconds) => {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
 }

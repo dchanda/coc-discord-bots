@@ -298,7 +298,7 @@ function rushed(channelID, args, thUpgraded) {
                 to: channelID,
                 embed: {
                     color: 13683174,
-                    description: '' + message_part + '',
+                    description: message,
                     footer: {
                         text: ''
                     },

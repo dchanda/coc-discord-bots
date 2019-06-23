@@ -248,64 +248,95 @@ function rushed(channelID, args, thUpgraded) {
     if (args.length > 0) {memberName = args.join(' '); memberName = memberName.toLowerCase();}
     var message = '';
     var message_parts = [];
-    models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
-        currentMembers.forEach( member => {
-            if (!member.inClan) return;
-            if ( memberName != null) {
-                if (! member.name.toLowerCase().includes(memberName)) {
-                    return;
-                }
-            }
-            if (thUpgraded) {
-                message += member.name + ' upgraded Town Hall to level ' + member.townhallLevel + '\n';
-            }
-            if (member.townhallLevel > 1) {
-                var maxTroops = MAX_TROOPS[member.townhallLevel-1];
-                var maxSpells = MAX_SPELLS[member.townhallLevel-1];
-
-                var playerTroops = member.Troops;
-                var playerSpells = member.Spells;
-
-                for(var troopName in TROOP_NAMES) {
-                    if (playerTroops[troopName]  < maxTroops[troopName]) {
-                        message += member.name + ' is Rushed (' + TROOP_NAMES[troopName] + ' is low).\n';
+    if ( memberName == null || !memberName.startsWith('#') ) {
+        models.PlayerData.findAll({ include: [{ all: true }]}).then(currentMembers => {
+            currentMembers.forEach( member => {
+                if (!member.inClan) return;
+                if ( memberName != null) {
+                    if (! member.name.toLowerCase().includes(memberName)) {
+                        return;
                     }
                 }
-                for(var spellName in SPELL_NAMES) {
-                    if (playerSpells[spellName]  < maxSpells[spellName]) {
-                        message += member.name + ' is Rushed (' + SPELL_NAMES[spellName] + ' is low).\n';
-                    }
+                message += _calculateRushed(channelID, member, thUpgraded);
+                if ( (message.match(/\n/g) || []).length > 40 ) {
+                    logger.debug('Rushed message part: ' + message);
+                    message_parts.push(message);
+                    message = '';
                 }
-            }
-            if ( (message.match(/\n/g) || []).length > 40 ) {
-                logger.debug('Rushed message part: ' + message);
-                message_parts.push(message);
-                message = '';
+            });
+            logger.debug('Rushed message final: ' + message);
+            message_parts.push(message);
+            if (!MAINTENANCE) {
+                logger.info('Found '+message_parts.length + ' pages of message');
+                message_parts.forEach(message_part => {
+                    var title = (thUpgraded) ? 'TH Upgraded': 'Rushed';
+                    bot.sendMessage({
+                        to: channelID,
+                        embed: {
+                            color: 13683174,
+                            description: '' + message_part + '',
+                            footer: {
+                                text: ''
+                            },
+                            thumbnail: {
+                                url: ''
+                            },
+                            title: title,
+                            url: ''
+                        }
+                    });
+                });
             }
         });
-        logger.debug('Rushed message final: ' + message);
-        message_parts.push(message);
-        if (!MAINTENANCE) {
-            logger.info('Found '+message_parts.length + ' pages of message');
-            message_parts.forEach(message_part => {
-                bot.sendMessage({
-                    to: channelID,
-                    embed: {
-                        color: 13683174,
-                        description: '' + message_part + '',
-                        footer: {
-                            text: ''
-                        },
-                        thumbnail: {
-                            url: ''
-                        },
-                        title: (thUpgraded) ? 'TH Upgraded Members': 'Rushed members',
+    } else {
+        var playerHolder = {};
+        _fetchAndSaveMember(memberName, playerHolder, function() {
+            var playerObject = playerHolder[Object.keys(playerHolder)[0]];
+            playerObject['inClan'] = false;
+            message = _calculateRushed(channelID, playerObject, false);
+            bot.sendMessage({
+                to: channelID,
+                embed: {
+                    color: 13683174,
+                    description: '' + message_part + '',
+                    footer: {
+                        text: ''
+                    },
+                    thumbnail: {
                         url: ''
-                    }
-                });
+                    },
+                    title: 'Offense info',
+                    url: ''
+                }
             });
+        });
+    }
+}
+
+function _calculateRushed(channelID, member, thUpgraded) {
+    var message = '';
+    if (thUpgraded) {
+        message += member.name + ' upgraded Town Hall to level ' + member.townhallLevel + '\n';
+    }
+    if (member.townhallLevel > 1) {
+        var maxTroops = MAX_TROOPS[member.townhallLevel-1];
+        var maxSpells = MAX_SPELLS[member.townhallLevel-1];
+
+        var playerTroops = member.Troops;
+        var playerSpells = member.Spells;
+
+        for(var troopName in TROOP_NAMES) {
+            if (playerTroops[troopName]  < maxTroops[troopName]) {
+                message += member.name + ' is Rushed (' + TROOP_NAMES[troopName] + ' is ' + playerTroops[troopName] + ').\n';
+            }
         }
-    });
+        for(var spellName in SPELL_NAMES) {
+            if (playerSpells[spellName]  < maxSpells[spellName]) {
+                message += member.name + ' is Rushed (' + SPELL_NAMES[spellName] + ' is ' + playerSpells[spellName] + ').\n';
+            }
+        }
+    }
+    return message;
 }
 
 function dateComparator(member1, member2) {
@@ -356,12 +387,15 @@ function _announceUpgrades() {
             var spellUpdates = {};
             if (latestDataForMember.townhallLevel > currentMemberData.townhallLevel) {
                 upgraded = true;
-                message += '' + currentMemberData.name + ' upgraded Town Hall to ' + latestDataForMember.townhallLevel + '\n';
+                message += '' + currentMemberData.name + ' upgraded to Town Hall ' + latestDataForMember.townhallLevel + '\n';
                 thUpgradedMembers.push(currentMemberData.name);
             }
             for(var troopName in TROOP_NAMES) {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
-                    message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + latestTroops[troopName] + '\n';
+                    if (currentMemberData.Troops[troopName] == 0) 
+                        message += '' + currentMemberData.name + ' unlocked ' + TROOP_NAMES[troopName] + '\n';
+                    else 
+                        message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + latestTroops[troopName] + '\n';
                     upgraded = true;
                     troopUpdates[troopName] = latestTroops[troopName];
                 }
@@ -369,7 +403,10 @@ function _announceUpgrades() {
             logger.debug('Troop Upgrades for ' + currentMemberData.name + ": " + troopUpdates);
             for(var spellName in SPELL_NAMES) {
                 if (latestSpells[spellName] > currentMemberData.Spells[spellName]) {
-                    message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + latestSpells[spellName] + '\n';
+                    if (currentMemberData.Spells[spellName] == 0) 
+                        message += '' + currentMemberData.name + ' unlocked ' + SPELL_NAMES[spellName] + '\n';
+                    else
+                        message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + latestSpells[spellName] + '\n';
                     upgraded = true;
                     spellUpdates[spellName] = latestSpells[spellName];
                 }

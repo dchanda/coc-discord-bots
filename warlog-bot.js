@@ -330,7 +330,7 @@ function _updateWarLog(err, attackSummary) {
         var sleepDuration = 0;
         resolvedClaims.forEach(resolvedClaim => {
             if ( !resolvedClaim[1] ) return;
-            if (resolvedClaim[3] == 3) {
+            if (''+resolvedClaim[3] == '3') {
                 var msg = '<@' + resolvedClaim[1] + '> Goodjob by ' + resolvedClaim[0] + ' on #' + resolvedClaim[2] + '!';
                 sleep(sleepDuration).then(() => {
                     bot.sendMessage({

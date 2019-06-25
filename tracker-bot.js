@@ -266,9 +266,9 @@ function researchInfo(channelID, args) {
                     var rsrcImage = '<:Elixir:592925068053577728>';
                     if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:DE:592925323654594621>';
-                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000;
+                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
                     } else {
-                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000000;
+                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
                     }
                     message += TROOP_NAMES[troopName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
                             + rsrcImage + ': ' 
@@ -290,9 +290,9 @@ function researchInfo(channelID, args) {
                     var rsrcImage = '<:Elixir:592925068053577728>';
                     if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:DE:592925323654594621>';
-                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000;
+                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
                     } else {
-                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000000;
+                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
                     }
                     message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
                             + rsrcImage + ': ' 

@@ -295,16 +295,18 @@ function researchInfo(channelID, args) {
             }
         }
         if (message == '') message = 'All research completed!';
+        message_parts.push(message);
         var sleepDuration = 5;
         message_parts.forEach(message_part => {
-            logger.debug("Message Part: " + message_part);
+            var tmpMessage = message_part;
+            logger.debug("Message Part: " + tmpMessage);
             sleep(sleepDuration).then(() => {
                 bot.sendMessage({
                     to: channelID,
-                    message: message_part
+                    message: tmpMessage
                 });
             });
-            sleepDuration += 100;
+            sleepDuration += 50;
         });
     });
 }

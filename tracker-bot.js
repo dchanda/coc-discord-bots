@@ -120,7 +120,6 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
-    console.log(message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -263,9 +262,9 @@ function researchInfo(channelID, args) {
             var troopDispName = TROOP_NAMES[troopName];
             if ( troopLevel < maxTroops[troopName]) {
                 for(var i=troopLevel; i<maxTroops[troopName]; i++) {
-                    var rsrcImage = '<:Elixir:592925068053577728>';
+                    var rsrcImage = '<:elixir:592937576642641930>';
                     if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
-                        rsrcImage = '<:DE:592925323654594621>';
+                        rsrcImage = '<:darkelixir:592937634028847135>';
                         totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
                     } else {
                         totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
@@ -287,9 +286,9 @@ function researchInfo(channelID, args) {
             var spellDispName = SPELL_NAMES[spellName];
             if ( spellLevel < maxSpells[spellName]) {
                 for(var i=spellLevel; i<maxSpells[spellName]; i++) {
-                    var rsrcImage = '<:Elixir:592925068053577728>';
+                    var rsrcImage = '<:elixir:592937576642641930>';
                     if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
-                        rsrcImage = '<:DE:592925323654594621>';
+                        rsrcImage = '<:darkelixir:592937634028847135>';
                         totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
                     } else {
                         totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
@@ -307,11 +306,11 @@ function researchInfo(channelID, args) {
         }
         if (totalElixir > 0) { 
             message += "\n";
-            message += 'Total <:Elixir:592925068053577728> :' + (totalElixir) + 'm\n';
+            message += 'Total <:elixir:592937576642641930> :' + (totalElixir) + 'm\n';
         }
         if (totalDE > 0) {
             message += "\n";
-            message += 'Total <:DE:592925323654594621> :' + (totalDE) + 'k\n';
+            message += 'Total <:darkelixir:592937634028847135> :' + (totalDE) + 'k\n';
         }
         if (message == '') message = 'All research completed!';
         message_parts.push(message);
@@ -898,7 +897,6 @@ function _loadResearchData(html) {
                 continue;
             }
         }
-        console.log($(headers[researchCostCol]).text());
         if ($(headers[researchCostCol]).text().indexOf('Dark') > -1) {
             resource = 'DE';
         }

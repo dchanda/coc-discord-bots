@@ -307,11 +307,11 @@ function researchInfo(channelID, args) {
         }
         if (totalElixir > 0) { 
             message += "\n";
-            message += 'Total <:Elixir:592925068053577728> :' + (totalElixir/1000000) + 'm\n';
+            message += 'Total <:Elixir:592925068053577728> :' + (totalElixir) + 'm\n';
         }
         if (totalDE > 0) {
             message += "\n";
-            message += 'Total <:DE:592925323654594621> :' + (totalElixir/1000) + 'k\n';
+            message += 'Total <:DE:592925323654594621> :' + (totalDE) + 'k\n';
         }
         if (message == '') message = 'All research completed!';
         message_parts.push(message);

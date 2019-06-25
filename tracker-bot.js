@@ -1,16 +1,20 @@
-var logger = require('./utils/logger.js');
-var models = require('./model/clashmodels.js');
-var clashapi = require('./utils/clashapi.js')
-var Discord = require('discord.io');
-var async = require('async');
-var scheduler = require('node-schedule');
-var moment = require('moment-timezone');
+const logger = require('./utils/logger.js');
+const models = require('./model/clashmodels.js');
+const clashapi = require('./utils/clashapi.js')
+const Discord = require('discord.io');
+const async = require('async');
+const scheduler = require('node-schedule');
+const moment = require('moment-timezone');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');
+const RESEARCH_DATA_BASEURL = 'https://clashofclans.fandom.com/wiki/';
 
 const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
 
+const RESEARCH_DATA = {};
 const CLAN_TAG = BOT_CONFIGS.thisClanTag;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
@@ -29,7 +33,7 @@ const TROOP_NAMES = {
     wizard: 'Wizard',
     healer: 'Healer',
     dragon: 'Dragon',
-    pekka: 'Pekka',
+    pekka: 'P.E.K.K.A',
     babydragon: 'Baby Dragon',
     miner: 'Miner',
     electrodragon: 'Electro Dragon',
@@ -47,7 +51,7 @@ const TROOP_NAMES = {
 };
 
 const SPELL_NAMES = {
-    lightning: 'Lightning',
+    lightning: 'Lightning Spell',
     heal: 'Healing Spell',
     rage: 'Rage Spell',
     jump: 'Jump Spell',
@@ -73,10 +77,17 @@ const loadMemberQueue = async.queue(function(memberTag, callback) {
     _fetchAndSaveMember(memberTag, playersMap, callback);
 }, 5);
 
+const fetchResearchInfoQueue = async.queue(function(troopName, callback) {
+    _fetchResearchData(troopName, callback);
+}, 5);
+
 // saveMemberQueue.drain = _announceUpgrades;
 
 loadMemberQueue.drain = _announceUpgrades;
 
+fetchResearchInfoQueue.drain = function() {
+    console.log('Caching Research Data Complete');
+};
 
 // Initialize Discord Bot
 var bot = new Discord.Client({
@@ -99,6 +110,7 @@ bot.on('ready', function (evt) {
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
     cacheMaxLevels();
+    cacheResearchData();
     setInterval(function() {
         checkNewMembers();
     }, 30000);
@@ -108,6 +120,7 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
+    console.log(message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -135,6 +148,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'rushed':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     rushed(channelID, args, false);
+                break;
+            case 'lab':
+                researchInfo(channelID, args);
                 break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -184,6 +200,16 @@ function cacheMaxLevels() {
     });
 }
 
+function cacheResearchData() {
+    for(var troopName in TROOP_NAMES) {
+        fetchResearchInfoQueue.push(TROOP_NAMES[troopName]);
+    }
+
+    for(var spellName in SPELL_NAMES) {
+        fetchResearchInfoQueue.push(SPELL_NAMES[spellName]);
+    }    
+}
+
 function checkClanJoinDates() {
     var today = moment(new Date());
     //Check 6 month anniversary
@@ -193,6 +219,94 @@ function checkClanJoinDates() {
             message: '@everyone, Congratulations on 6 Month Anniversary! Good going!'
         });
     }
+}
+
+
+function researchInfo(channelID, args) {
+    var memberName = null;
+    if (args.length > 0) {memberName = args.join(' ');}
+    else {
+        bot.sendMessage({
+            to: channelID,
+            message: 'Need a player name of playerTag bud!'
+        });
+    }
+    if ( memberName.startsWith('#') ) {
+        where = {tag: memberName};
+    } else {
+        where = {name: memberName};
+    }
+    models.PlayerData.findAll({ 
+        where: where,
+        include: [{ all: true }]
+    }).then(currentMembers => {
+        if (currentMembers.length == 0) {
+            bot.sendMessage({
+                to: channelID,
+                message: 'Cannot find player with name: "' + memberName + '"'
+            });
+            return;
+        }
+        var member = currentMembers[0];
+        var maxTroops = MAX_TROOPS[member.townhallLevel];
+        var maxSpells = MAX_SPELLS[member.townhallLevel];
+
+        var playerTroops = member.Troops;
+        var playerSpells = member.Spells;
+        var message = '';
+        var message_parts = [];
+        var lineLimit = 20;
+        for(var troopName in TROOP_NAMES) {
+            var troopLevel = playerTroops[troopName];
+            var troopDispName = TROOP_NAMES[troopName];
+            if ( troopLevel < maxTroops[troopName]) {
+                for(var i=troopLevel; i<maxTroops[troopName]; i++) {
+                    var rsrcImage = '<:Elixir:592925068053577728>';
+                    if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE')
+                        rsrcImage = '<:DE:592925323654594621>';
+                    message += TROOP_NAMES[troopName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
+                            + rsrcImage + ': ' 
+                            + RESEARCH_DATA[troopDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
+                            + RESEARCH_DATA[troopDispName+'-'+(i+1)].time + '\n';
+                    if ( (message.match(/\n/g) || []).length > lineLimit ) {
+                        message_parts.push(message);
+                        message = '';
+                    }
+                }
+            }
+        }
+        for(var spellName in SPELL_NAMES) {
+            var spellLevel = playerSpells[spellName];
+            var spellDispName = SPELL_NAMES[spellName];
+            if ( spellLevel < maxSpells[spellName]) {
+                for(var i=spellLevel; i<maxSpells[spellName]; i++) {
+                    var rsrcImage = '<:Elixir:592925068053577728>';
+                    if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE')
+                        rsrcImage = '<:DE:592925323654594621>';
+                    message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
+                            + rsrcImage + ': ' 
+                            + RESEARCH_DATA[spellDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
+                            + RESEARCH_DATA[spellDispName+'-'+(i+1)].time + '\n';
+                    if ( (message.match(/\n/g) || []).length > lineLimit ) {
+                        message_parts.push(message);
+                        message = '';
+                    }
+                }
+            }
+        }
+        if (message == '') message = 'All research completed!';
+        var sleepDuration = 5;
+        message_parts.forEach(message_part => {
+            logger.debug("Message Part: " + message_part);
+            sleep(sleepDuration).then(() => {
+                bot.sendMessage({
+                    to: channelID,
+                    message: message_part
+                });
+            });
+            sleepDuration += 100;
+        });
+    });
 }
 
 function memberDate(channelID, args) {
@@ -257,7 +371,7 @@ function rushed(channelID, args, thUpgraded) {
                         return;
                     }
                 }
-                message += _calculateRushed(channelID, member, thUpgraded);
+                message += _calculateRushed(member, thUpgraded);
                 if ( (message.match(/\n/g) || []).length > 40 ) {
                     logger.debug('Rushed message part: ' + message);
                     message_parts.push(message);
@@ -293,7 +407,7 @@ function rushed(channelID, args, thUpgraded) {
         _fetchAndSaveMember(memberName, playerHolder, function() {
             var playerObject = playerHolder[Object.keys(playerHolder)[0]];
             playerObject['inClan'] = false;
-            message = _calculateRushed(channelID, playerObject, false);
+            message = _calculateRushed(playerObject, false);
             bot.sendMessage({
                 to: channelID,
                 embed: {
@@ -313,7 +427,7 @@ function rushed(channelID, args, thUpgraded) {
     }
 }
 
-function _calculateRushed(channelID, member, thUpgraded) {
+function _calculateRushed(member, thUpgraded) {
     var message = '';
     if (thUpgraded) {
         message += member.name + ' upgraded Town Hall to level ' + member.townhallLevel + '\n';
@@ -704,6 +818,98 @@ function getCurrentData(callback) {
     });
 }
 
+function _fetchResearchData(troopName, callback) {
+    var url = RESEARCH_DATA_BASEURL + troopName.replace(" ","_");
+    if (troopName == 'Baby Dragon') 
+        url = RESEARCH_DATA_BASEURL + 'Baby_Dragon/Home_Village';
+
+    axios.get(url).then(response => {
+        _loadResearchData(response.data);
+        callback();
+    }).catch(function (err) {
+        logger.error('Error for ' + troopName + ': ' + err);
+        callback();
+    });
+}
+
+function _loadResearchData(html) {
+    const $ = cheerio.load(html);
+
+    var troopName = $('h1.page-header__title').text();
+    if (troopName.indexOf('/')) troopName = troopName.split('/')[0];
+    
+    var tables = $('.wikitable');
+    
+    for(var i=0; i<tables.length; i++) {
+        var table = tables[i];
+        //                 TABLE   TBODY               TR                TH/TD
+        var innerHtml = $(table).children().first().children().first().children().first().text();
+        if (innerHtml.indexOf("Level") < 0) continue;
+        rows = $(table).children().first().children();
+        var levelCol = 0;
+        var researchCostCol = -1;
+        var researchTimeCol = -1;
+        var headers = $(rows[0]).children();
+        var resource = 'Elixir';
+        for(var j=0; j<headers.length; j++) {
+            if ($(headers[j]).text().indexOf('Research Cost') > -1) {
+                researchCostCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Upgrade Cost') > -1 && researchCostCol == -1) {
+                researchCostCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Training Cost') > -1 && researchCostCol == -1) {
+                researchCostCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Research Time') > -1) {
+                researchTimeCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Upgrade') > -1 && researchTimeCol == -1) {
+                researchTimeCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Training Time') > -1 && researchTimeCol == -1) {
+                researchTimeCol = j;
+                continue;
+            }
+        }
+        console.log($(headers[researchCostCol]).text());
+        if ($(headers[researchCostCol]).text().indexOf('Dark') > -1) {
+            resource = 'DE';
+        }
+        for(var j=1; j<rows.length; j++){
+            var cost = parseInt(strip($($(rows[j]).children()[researchCostCol]).text()), 10);
+            if (resource == 'DE')
+                cost = (cost/1000) + 'k';
+            else
+                cost = (cost/1000000) + 'm';
+            var upgData = {
+                level: strip($($(rows[j]).children()[levelCol]).text()),
+                cost: cost,
+                time: strip($($(rows[j]).children()[researchTimeCol]).text()),
+                resource: resource
+            };
+            RESEARCH_DATA[troopName+'-'+upgData.level] = upgData;
+        }
+        break;
+    }
+}  
+
+function strip(someText) {
+    someText = someText.replace(/(\r\n|\n|\r)/gm,"");
+    someText = someText.replace(/,/gm,"");
+    someText = someText.trim();
+    return someText;
+}
+
 const sleep = (milliseconds) => {
     return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function getKeyByValue(object, value) {
+  return Object.keys(object).find(key => object[key] === value);
 }

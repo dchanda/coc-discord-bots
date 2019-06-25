@@ -256,18 +256,25 @@ function researchInfo(channelID, args) {
         var message = '';
         var message_parts = [];
         var lineLimit = 20;
+        var totalElixir = 0;
+        var totalDE = 0;
         for(var troopName in TROOP_NAMES) {
             var troopLevel = playerTroops[troopName];
             var troopDispName = TROOP_NAMES[troopName];
             if ( troopLevel < maxTroops[troopName]) {
                 for(var i=troopLevel; i<maxTroops[troopName]; i++) {
                     var rsrcImage = '<:Elixir:592925068053577728>';
-                    if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE')
+                    if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:DE:592925323654594621>';
+                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000;
+                    } else {
+                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000000;
+                    }
                     message += TROOP_NAMES[troopName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
                             + rsrcImage + ': ' 
                             + RESEARCH_DATA[troopDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
                             + RESEARCH_DATA[troopDispName+'-'+(i+1)].time + '\n';
+
                     if ( (message.match(/\n/g) || []).length > lineLimit ) {
                         message_parts.push(message);
                         message = '';
@@ -281,8 +288,12 @@ function researchInfo(channelID, args) {
             if ( spellLevel < maxSpells[spellName]) {
                 for(var i=spellLevel; i<maxSpells[spellName]; i++) {
                     var rsrcImage = '<:Elixir:592925068053577728>';
-                    if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE')
+                    if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:DE:592925323654594621>';
+                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000;
+                    } else {
+                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost) * 1000000;
+                    }
                     message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
                             + rsrcImage + ': ' 
                             + RESEARCH_DATA[spellDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
@@ -293,6 +304,14 @@ function researchInfo(channelID, args) {
                     }
                 }
             }
+        }
+        if (totalElixir > 0) { 
+            message += "\n";
+            message += 'Total <:Elixir:592925068053577728> :' + (totalElixir/1000000) + 'm\n';
+        }
+        if (totalDE > 0) {
+            message += "\n";
+            message += 'Total <:DE:592925323654594621> :' + (totalElixir/1000) + 'k\n';
         }
         if (message == '') message = 'All research completed!';
         message_parts.push(message);

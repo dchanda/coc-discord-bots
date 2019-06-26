@@ -286,7 +286,7 @@ function _updateWarLog(err, attackSummary) {
                 var playerAttacks = attackSummary[playerTag];
                 if ('attack1' in playerAttacks) {
                     if (claims && claims[i] && claims[i][0] != '' && ''+claims[i][0] == ''+playerAttacks.attack1.base) {
-                        if (playersData[i].length>3) resolvedClaims.push([playersData[i][0], playersData[i][3], claims[i][0]], playerAttacks.attack1.stars);
+                        if (playersData[i].length>3) resolvedClaims.push([playersData[i][0], playersData[i][3], claims[i][0], playerAttacks.attack1.stars]);
                         updateData.push({range: WAR_LOG+'!E'+(i+5), values: [['']]});
                     }
                     if ('attack2' in playerAttacks) {

@@ -50,6 +50,12 @@ const TROOP_NAMES = {
     grandWarden: 'Grand Warden',
 };
 
+const HEROES = {
+    barbarianKing: 'Barbarian King',
+    archerQueen: 'Archer Queen',
+    grandWarden: 'Grand Warden',
+}
+
 const SPELL_NAMES = {
     lightning: 'Lightning Spell',
     heal: 'Healing Spell',
@@ -109,6 +115,7 @@ bot.on('ready', function (evt) {
     logger.info('Connected');
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
+
     cacheMaxLevels();
     cacheResearchData();
     setInterval(function() {
@@ -149,7 +156,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                     rushed(channelID, args, false);
                 break;
             case 'lab':
-                researchInfo(channelID, args);
+                researchInfo(channelID, args, false);
+                break;
+            case 'hero':
+                researchInfo(channelID, args, true);
                 break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -221,7 +231,7 @@ function checkClanJoinDates() {
 }
 
 
-function researchInfo(channelID, args) {
+function researchInfo(channelID, args, heroes) {
     var memberName = null;
     if (args.length > 0) {memberName = args.join(' ');}
     else {
@@ -260,6 +270,11 @@ function researchInfo(channelID, args) {
         for(var troopName in TROOP_NAMES) {
             var troopLevel = playerTroops[troopName];
             var troopDispName = TROOP_NAMES[troopName];
+            if (heroes)
+                if !(troopName in HEROES) continue;
+            if (!heroes)
+                if (troopName in HEROES) continue;
+
             if ( troopLevel < maxTroops[troopName]) {
                 for(var i=troopLevel; i<maxTroops[troopName]; i++) {
                     var rsrcImage = '<:elixir:592937576642641930>';

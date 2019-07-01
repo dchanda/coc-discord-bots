@@ -271,7 +271,7 @@ function researchInfo(channelID, args, heroes) {
             var troopLevel = playerTroops[troopName];
             var troopDispName = TROOP_NAMES[troopName];
             if (heroes)
-                if !(troopName in HEROES) continue;
+                if (!(troopName in HEROES)) continue;
             if (!heroes)
                 if (troopName in HEROES) continue;
 

@@ -270,10 +270,11 @@ function researchInfo(channelID, args, heroes) {
         for(var troopName in TROOP_NAMES) {
             var troopLevel = playerTroops[troopName];
             var troopDispName = TROOP_NAMES[troopName];
-            if (heroes)
+            if (heroes) {
                 if (!(troopName in HEROES)) continue;
-            if (!heroes)
+            } else {
                 if (troopName in HEROES) continue;
+            }
 
             if ( troopLevel < maxTroops[troopName]) {
                 for(var i=troopLevel; i<maxTroops[troopName]; i++) {
@@ -296,29 +297,30 @@ function researchInfo(channelID, args, heroes) {
                 }
             }
         }
-        for(var spellName in SPELL_NAMES) {
-            var spellLevel = playerSpells[spellName];
-            var spellDispName = SPELL_NAMES[spellName];
-            if ( spellLevel < maxSpells[spellName]) {
-                for(var i=spellLevel; i<maxSpells[spellName]; i++) {
-                    var rsrcImage = '<:elixir:592937576642641930>';
-                    if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
-                        rsrcImage = '<:darkelixir:592937634028847135>';
-                        totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
-                    } else {
-                        totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
-                    }
-                    message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
-                            + rsrcImage + ': ' 
-                            + RESEARCH_DATA[spellDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
-                            + RESEARCH_DATA[spellDispName+'-'+(i+1)].time + '\n';
-                    if ( (message.match(/\n/g) || []).length > lineLimit ) {
-                        message_parts.push(message);
-                        message = '';
+        if (!heroes)
+            for(var spellName in SPELL_NAMES) {
+                var spellLevel = playerSpells[spellName];
+                var spellDispName = SPELL_NAMES[spellName];
+                if ( spellLevel < maxSpells[spellName]) {
+                    for(var i=spellLevel; i<maxSpells[spellName]; i++) {
+                        var rsrcImage = '<:elixir:592937576642641930>';
+                        if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
+                            rsrcImage = '<:darkelixir:592937634028847135>';
+                            totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
+                        } else {
+                            totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
+                        }
+                        message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
+                                + rsrcImage + ': ' 
+                                + RESEARCH_DATA[spellDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
+                                + RESEARCH_DATA[spellDispName+'-'+(i+1)].time + '\n';
+                        if ( (message.match(/\n/g) || []).length > lineLimit ) {
+                            message_parts.push(message);
+                            message = '';
+                        }
                     }
                 }
             }
-        }
         if (totalElixir > 0) { 
             message += "\n";
             message += 'Total <:elixir:592937576642641930> :' + (totalElixir) + 'm\n';
@@ -339,7 +341,7 @@ function researchInfo(channelID, args, heroes) {
                     message: tmpMessage
                 });
             });
-            sleepDuration += 50;
+            sleepDuration += 200;
         });
     });
 }

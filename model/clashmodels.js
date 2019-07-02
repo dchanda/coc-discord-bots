@@ -171,4 +171,4 @@ SpellMaximums.init({
   updatedAt: false,  
 });
 
-module.exports = { PlayerData, Troops, Spells, TroopMaximums, SpellMaximums }
+module.exports = { PlayerData, Troops, Spells, TroopMaximums, SpellMaximums, sequelize }

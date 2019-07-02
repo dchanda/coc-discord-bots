@@ -240,56 +240,91 @@ function researchInfo(channelID, args, heroes) {
             message: 'Need a player name of playerTag bud!'
         });
     }
+    
     if ( memberName.startsWith('#') ) {
         where = {tag: memberName};
     } else {
-        where = {name: memberName};
-    }
-    models.PlayerData.findAll({ 
-        where: where,
-        include: [{ all: true }]
-    }).then(currentMembers => {
-        if (currentMembers.length == 0) {
-            bot.sendMessage({
-                to: channelID,
-                message: 'Cannot find player with name: "' + memberName + '"'
-            });
-            return;
-        }
-        var member = currentMembers[0];
-        var maxTroops = MAX_TROOPS[member.townhallLevel];
-        var maxSpells = MAX_SPELLS[member.townhallLevel];
-
-        var playerTroops = member.Troops;
-        var playerSpells = member.Spells;
-        var message = '';
-        var message_parts = [];
-        var lineLimit = 20;
-        var totalElixir = 0;
-        var totalDE = 0;
-        for(var troopName in TROOP_NAMES) {
-            var troopLevel = playerTroops[troopName];
-            var troopDispName = TROOP_NAMES[troopName];
-            if (heroes) {
-                if (!(troopName in HEROES)) continue;
-            } else {
-                if (troopName in HEROES) continue;
+        //where = {lower(name): memberName};
+        where = models.sequelize.where(
+            models.sequelize.fn('lower', models.sequelize.col('name')),
+            memberName.toLowerCase()
+        );
+        models.PlayerData.findAll({ 
+            where: where,
+            include: [{ all: true }]
+        }).then(currentMembers => {
+            if (currentMembers.length == 0) {
+                bot.sendMessage({
+                    to: channelID,
+                    message: 'Cannot find player with name: "' + memberName + '"'
+                });
+                return;
             }
+            var member = currentMembers[0];
+            _parseAndAnnounceResearchInfo(member, channelID, heroes);
+        });
+    }
+}
 
-            if ( troopLevel < maxTroops[troopName]) {
-                for(var i=troopLevel; i<maxTroops[troopName]; i++) {
+function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
+    var maxTroops = MAX_TROOPS[member.townhallLevel];
+    var maxSpells = MAX_SPELLS[member.townhallLevel];
+
+    var playerTroops = member.Troops;
+    var playerSpells = member.Spells;
+    var message = '';
+    var message_parts = [];
+    var lineLimit = 20;
+    var totalElixir = 0;
+    var totalDE = 0;
+    for(var troopName in TROOP_NAMES) {
+        var troopLevel = playerTroops[troopName];
+        var troopDispName = TROOP_NAMES[troopName];
+        if (heroes) {
+            if (!(troopName in HEROES)) continue;
+        } else {
+            if (troopName in HEROES) continue;
+        }
+
+        if ( troopLevel < maxTroops[troopName]) {
+            for(var i=troopLevel; i<maxTroops[troopName]; i++) {
+                if (i == 0) continue;
+                var rsrcImage = '<:elixir:592937576642641930>';
+                if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
+                    rsrcImage = '<:darkelixir:592937634028847135>';
+                    totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                } else {
+                    totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                }
+                var cost = RESEARCH_DATA[troopDispName+'-'+(i+1)].cost;
+                var time = RESEARCH_DATA[troopDispName+'-'+(i+1)].time;
+                var name = TROOP_NAMES[troopName].padEnd(16);
+                message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost.padEnd(5)}\` ${rsrcImage} \`${time}\`\n`;
+                if ( (message.match(/\n/g) || []).length > lineLimit ) {
+                    message_parts.push(message);
+                    message = '';
+                }
+            }
+        }
+    }
+    if (!heroes) {
+        for(var spellName in SPELL_NAMES) {
+            var spellLevel = playerSpells[spellName];
+            var spellDispName = SPELL_NAMES[spellName];
+            if ( spellLevel < maxSpells[spellName]) {
+                for(var i=spellLevel; i<maxSpells[spellName]; i++) {
+                    if (i == 0) continue;
                     var rsrcImage = '<:elixir:592937576642641930>';
-                    if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
+                    if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:darkelixir:592937634028847135>';
-                        totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                        totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
                     } else {
-                        totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                        totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
                     }
-                    message += TROOP_NAMES[troopName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
-                            + rsrcImage + ': ' 
-                            + RESEARCH_DATA[troopDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
-                            + RESEARCH_DATA[troopDispName+'-'+(i+1)].time + '\n';
-
+                    var cost = RESEARCH_DATA[spellDispName+'-'+(i+1)].cost;
+                    var time = RESEARCH_DATA[spellDispName+'-'+(i+1)].time;
+                    var name = SPELL_NAMES[spellName].padEnd(16);
+                    message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost.padEnd(5)}\` ${rsrcImage} \`${time}\`\n`;
                     if ( (message.match(/\n/g) || []).length > lineLimit ) {
                         message_parts.push(message);
                         message = '';
@@ -297,52 +332,27 @@ function researchInfo(channelID, args, heroes) {
                 }
             }
         }
-        if (!heroes)
-            for(var spellName in SPELL_NAMES) {
-                var spellLevel = playerSpells[spellName];
-                var spellDispName = SPELL_NAMES[spellName];
-                if ( spellLevel < maxSpells[spellName]) {
-                    for(var i=spellLevel; i<maxSpells[spellName]; i++) {
-                        var rsrcImage = '<:elixir:592937576642641930>';
-                        if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
-                            rsrcImage = '<:darkelixir:592937634028847135>';
-                            totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
-                        } else {
-                            totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
-                        }
-                        message += SPELL_NAMES[spellName] + ' lvl ' + i + ' to lvl ' + (i+1) + ' '
-                                + rsrcImage + ': ' 
-                                + RESEARCH_DATA[spellDispName+'-'+(i+1)].cost +  ';' + ' Time: ' 
-                                + RESEARCH_DATA[spellDispName+'-'+(i+1)].time + '\n';
-                        if ( (message.match(/\n/g) || []).length > lineLimit ) {
-                            message_parts.push(message);
-                            message = '';
-                        }
-                    }
-                }
-            }
-        if (totalElixir > 0) { 
-            message += "\n";
-            message += 'Total <:elixir:592937576642641930> :' + (totalElixir) + 'm\n';
-        }
-        if (totalDE > 0) {
-            message += "\n";
-            message += 'Total <:darkelixir:592937634028847135> :' + (totalDE) + 'k\n';
-        }
-        if (message == '') message = 'All research completed!';
-        message_parts.push(message);
-        var sleepDuration = 5;
-        message_parts.forEach(message_part => {
-            var tmpMessage = message_part;
-            logger.debug("Message Part: " + tmpMessage);
-            sleep(sleepDuration).then(() => {
-                bot.sendMessage({
-                    to: channelID,
-                    message: tmpMessage
-                });
+    }
+    message += "\n";
+    if (totalElixir > 0) { 
+        message += `\`Total \`<:elixir:592937576642641930>\` : ${totalElixir}m \`\n`;
+    }
+    if (totalDE > 0) {
+        message += `\`Total \`<:darkelixir:592937634028847135>\` : ${totalDE}k \`\n`;
+    }
+    if (message == '') message = '`All research completed!`';
+    message_parts.push(message);
+    var sleepDuration = 5;
+    message_parts.forEach(message_part => {
+        var tmpMessage = message_part;
+        logger.debug("Message Part: " + tmpMessage);
+        sleep(sleepDuration).then(() => {
+            bot.sendMessage({
+                to: channelID,
+                message: tmpMessage
             });
-            sleepDuration += 200;
         });
+        sleepDuration += 200;
     });
 }
 

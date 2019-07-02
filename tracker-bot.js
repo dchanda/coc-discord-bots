@@ -242,7 +242,11 @@ function researchInfo(channelID, args, heroes) {
     }
     
     if ( memberName.startsWith('#') ) {
-        where = {tag: memberName};
+        var playerHolder = {};
+        _fetchAndSaveMember(memberName, playerHolder, function() {
+            var playerObject = playerHolder[Object.keys(playerHolder)[0]];
+            _parseAndAnnounceResearchInfo(playerObject, channelID, heroes);
+        });        
     } else {
         //where = {lower(name): memberName};
         where = models.sequelize.where(

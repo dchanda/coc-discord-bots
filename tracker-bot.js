@@ -233,19 +233,32 @@ function checkClanJoinDates() {
 
 function researchInfo(channelID, args, heroes) {
     var memberName = null;
-    if (args.length > 0) {memberName = args.join(' ');}
-    else {
+    var discount = 1;
+    if (args.length > 0) {
+        if ( args[args.length-1].endsWith('%') ) {
+            discount = 1 - (parseInt(args.pop()) *  0.01);
+            if (discount < 0.8) {
+                bot.sendMessage({
+                    to: channelID,
+                    message: 'That discount is absurd! Are you even playing Clash of Clans??'
+                });
+                return;
+            }
+        }
+        memberName = args.join(' ');
+    } else {
         bot.sendMessage({
             to: channelID,
             message: 'Need a player name of playerTag bud!'
         });
+        return;
     }
     
     if ( memberName.startsWith('#') ) {
         var playerHolder = {};
         _fetchAndSaveMember(memberName, playerHolder, function() {
             var playerObject = playerHolder[Object.keys(playerHolder)[0]];
-            _parseAndAnnounceResearchInfo(playerObject, channelID, heroes);
+            _parseAndAnnounceResearchInfo(playerObject, channelID, discount, heroes);
         });        
     } else {
         //where = {lower(name): memberName};
@@ -265,12 +278,12 @@ function researchInfo(channelID, args, heroes) {
                 return;
             }
             var member = currentMembers[0];
-            _parseAndAnnounceResearchInfo(member, channelID, heroes);
+            _parseAndAnnounceResearchInfo(member, channelID, discount, heroes);
         });
     }
 }
 
-function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
+function _parseAndAnnounceResearchInfo(member, channelID, discount, heroes) {
     var maxTroops = MAX_TROOPS[member.townhallLevel];
     var maxSpells = MAX_SPELLS[member.townhallLevel];
 
@@ -281,6 +294,7 @@ function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
     var lineLimit = 20;
     var totalElixir = 0;
     var totalDE = 0;
+    var totalTime = 0;
     for(var troopName in TROOP_NAMES) {
         var troopLevel = playerTroops[troopName];
         var troopDispName = TROOP_NAMES[troopName];
@@ -293,17 +307,23 @@ function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
         if ( troopLevel < maxTroops[troopName]) {
             for(var i=troopLevel; i<maxTroops[troopName]; i++) {
                 if (i == 0) continue;
+                var cost = RESEARCH_DATA[troopDispName+'-'+(i+1)].cost;
+                cost = parseFloat(cost) * discount;
                 var rsrcImage = '<:elixir:592937576642641930>';
                 if (RESEARCH_DATA[troopDispName+'-'+(i+1)].resource == 'DE') {
                     rsrcImage = '<:darkelixir:592937634028847135>';
-                    totalDE += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                    totalDE += cost;
+                    cost = cost.toPrecision(3) + 'k';
                 } else {
-                    totalElixir += parseFloat(RESEARCH_DATA[troopDispName+'-'+(i+1)].cost);
+                    totalElixir += cost;
+                    cost = cost.toPrecision(3) + 'm';
                 }
-                var cost = RESEARCH_DATA[troopDispName+'-'+(i+1)].cost;
+                
                 var time = RESEARCH_DATA[troopDispName+'-'+(i+1)].time;
+                totalTime += (getTime(time) * discount);
+                time = formatTime( getTime(time) * discount );
                 var name = TROOP_NAMES[troopName].padEnd(16);
-                message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost.padEnd(5)}\` ${rsrcImage} \`${time}\`\n`;
+                message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost}\` ${rsrcImage} \`${time}\`\n`;
                 if ( (message.match(/\n/g) || []).length > lineLimit ) {
                     message_parts.push(message);
                     message = '';
@@ -318,17 +338,22 @@ function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
             if ( spellLevel < maxSpells[spellName]) {
                 for(var i=spellLevel; i<maxSpells[spellName]; i++) {
                     if (i == 0) continue;
+                    var cost = RESEARCH_DATA[spellDispName+'-'+(i+1)].cost;
+                    cost = parseFloat(cost) * discount;
                     var rsrcImage = '<:elixir:592937576642641930>';
                     if (RESEARCH_DATA[spellDispName+'-'+(i+1)].resource == 'DE') {
                         rsrcImage = '<:darkelixir:592937634028847135>';
-                        totalDE += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
+                        totalDE += cost;
+                        cost = cost.toPrecision(3) + 'k';
                     } else {
-                        totalElixir += parseFloat(RESEARCH_DATA[spellDispName+'-'+(i+1)].cost);
+                        totalElixir += cost;
+                        cost = cost.toPrecision(3) + 'm';
                     }
-                    var cost = RESEARCH_DATA[spellDispName+'-'+(i+1)].cost;
                     var time = RESEARCH_DATA[spellDispName+'-'+(i+1)].time;
+                    totalTime += (getTime(time) * discount);
+                    time = formatTime( getTime(time) * discount );
                     var name = SPELL_NAMES[spellName].padEnd(16);
-                    message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost.padEnd(5)}\` ${rsrcImage} \`${time}\`\n`;
+                    message += `\`${name} lvl-${i}  to lvl-${i+1}: ${cost}\` ${rsrcImage} \`${time}\`\n`;
                     if ( (message.match(/\n/g) || []).length > lineLimit ) {
                         message_parts.push(message);
                         message = '';
@@ -337,14 +362,20 @@ function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
             }
         }
     }
+    if (totalElixir == 0 && totalDE == 0) {
+        message = '`All research completed!`';
+        if (heroes) message = '`Heroes maxed!`';
+    }
     message += "\n";
     if (totalElixir > 0) { 
-        message += `\`Total \`<:elixir:592937576642641930>\` : ${totalElixir}m \`\n`;
+        message += `\`Total \`<:elixir:592937576642641930>\` : ${totalElixir.toPrecision(5)}m \`\n`;
     }
     if (totalDE > 0) {
-        message += `\`Total \`<:darkelixir:592937634028847135>\` : ${totalDE}k \`\n`;
+        message += `\`Total \`<:darkelixir:592937634028847135>\` : ${totalDE.toPrecision(5)}k \`\n`;
     }
-    if (message == '') message = '`All research completed!`';
+    if (totalTime > 0) {
+        message += `\`Total time: ${formatTime(totalTime)}\`\n`;
+    }
     message_parts.push(message);
     var sleepDuration = 5;
     message_parts.forEach(message_part => {
@@ -358,6 +389,35 @@ function _parseAndAnnounceResearchInfo(member, channelID, heroes) {
         });
         sleepDuration += 200;
     });
+}
+
+function getTime(timeStr) {
+    var total = 0;
+    var parts = timeStr.trim().split(' ');
+    while (parts.length > 0) {
+        var part = parts.shift();
+        if (part.endsWith('d') || part.endsWith('days'))
+            total += (parseInt(part) * 24);
+        else if (part.endsWith('h'))    
+            total += parseInt(part)
+        else if (parts.length > 0 && (parts[0] == 'days' || parts[0] == 'd')) {
+            parts.shift();
+            total += parseInt(part) * 24;
+        } else if (parts.length > 0 && parts[0] == 'h') {
+            parts.shift();
+            total += parseInt(part);
+        }
+    }
+
+    return total;    
+}
+
+
+function formatTime(time) {
+    if ( time%24 > 0 )
+        return `${Math.floor(time/24)}d ${Math.round(time%24)}h`;
+    else 
+        return `${time/24}d`;
 }
 
 function memberDate(channelID, args) {

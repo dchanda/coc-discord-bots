@@ -228,6 +228,7 @@ function checkClanJoinDates() {
             message: '@everyone, Congratulations on 6 Month Anniversary! Good going!'
         });
     }
+    var message_parts = [];
     models.PlayerData.findAll().then(currentMembers => {
         var message = '';
         var now = moment(new Date());
@@ -237,7 +238,7 @@ function checkClanJoinDates() {
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
             if (duration.months() > 0 && duration.days() == 0) {
-                message += `:tada: ** ${member.name} ** \`completed  ${duration.months()} with us today!\`\n`;
+                message += `:tada: ** ${member.name} ** \`completed ${duration.months()}months with us today!\`\n`;
             }
             if ( (message.match(/\n/g) || []).length > 30 ) {
                 message_parts.push(message);
@@ -251,7 +252,7 @@ function checkClanJoinDates() {
             logger.debug("Message Part: " + message_part);
             sleep(sleepDuration).then(() => {
                 bot.sendMessage({
-                    to: channelID,
+                    to: BOT_ANNOUNCE_CHANNELID,
                     message: message_part
                 });
             });

@@ -228,6 +228,36 @@ function checkClanJoinDates() {
             message: '@everyone, Congratulations on 6 Month Anniversary! Good going!'
         });
     }
+    models.PlayerData.findAll().then(currentMembers => {
+        var message = '';
+        var now = moment(new Date());
+        curentMembers = currentMembers.sort(dateComparator);
+        currentMembers.forEach(member => {
+            if (!member.inClan) return;
+            var joinDate = moment(member.joinDate);
+            var duration = moment.duration(now.diff(joinDate));
+            if (duration.months() > 0 && duration.days() == 0) {
+                message += `:tada: ** ${member.name} ** \`completed  ${duration.months()} with us today!\`\n`;
+            }
+            if ( (message.match(/\n/g) || []).length > 30 ) {
+                message_parts.push(message);
+                message = '';
+            }
+        });
+        message_parts.push(message);
+
+        var sleepDuration = 5;
+        message_parts.forEach(message_part => {
+            logger.debug("Message Part: " + message_part);
+            sleep(sleepDuration).then(() => {
+                bot.sendMessage({
+                    to: channelID,
+                    message: message_part
+                });
+            });
+            sleepDuration += 100;
+        });
+    });
 }
 
 

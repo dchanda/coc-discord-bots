@@ -16,6 +16,9 @@ const RESEARCH_DATA_BASEURL = 'https://clashofclans.fandom.com/wiki/';
 const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
 
 const ROASTS = [];
+const LEADERS = [];
+const OFFICERS = [];
+const CHANNELS = {};
 
 const MAINTENANCE = BOT_CONFIGS.maintenance;
 
@@ -37,6 +40,7 @@ bot.on('disconnect', function(erMsg, code) {
 
 bot.on('ready', function (evt) {
     var server = getServer();
+    cacheUserRoles(server);
     bot.setPresence({
         game: {name: 'Watching Almost Divorced'}
     });
@@ -47,11 +51,10 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
-    console.log(userID + ': ' + message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
-    if (message.substring(0, 2) == 'r ') {
-        var args = message.substring(2).split(' ');
+    if (message.substring(0, 1) == '!') {
+        var args = message.substring(1).split(' ');
         var cmd = args[0];
 
         args = args.splice(1);
@@ -65,17 +68,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             }
         }
         switch(cmd) {
-            // !ping
-            case 'help':
-                help(channelID);
-                break;
-            case 'adhelp':
-                help(channelID);
-                break;
             case 'r':
             case 'roast':
-                //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
+                if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     roast(channelID, args, userID);
+                else 
+                    roast(channelID, [], userID);
                 break;
          }
      } else {
@@ -104,6 +102,41 @@ bot.on('message', function (user, userID, channelID, message, evt) {
      }
 });
 
+
+function cacheUserRoles(server) {
+    var channels = server.channels;
+    for(var id in channels) {
+        CHANNELS[channels[id].name] = id;
+        console.log(id + " - " + channels[id].name);
+    }
+    var roles = server.roles;
+    var officer_role_id = '';
+    var leader_role_id = '';
+    for(var roleid in roles) {
+        var role = roles[roleid];
+        if (role.name == 'Officer') {
+            officer_role_id = role.id;
+            continue;
+        } else if (role.name == 'Leader') {
+            leader_role_id = role.id;
+            continue;
+        }
+    }
+
+    var members = server.members;
+    for(var memberid in members) {
+        var member = members[memberid];
+        // if (!member.bot) {
+        //     console.log(member.username + "  -  " + member.id);
+        // }
+        if (member.roles.includes(officer_role_id))
+            OFFICERS.push(member.id);
+        if (member.roles.includes(leader_role_id))
+            LEADERS.push(member.id);
+    }
+
+}
+
 function getServer() {
     return bot.servers[ALMOST_DIVORCED_SERVER_ID];
 }
@@ -127,9 +160,14 @@ function roast(channelID, args, userID) {
             user = tmpUser;
     }
     var roastNum = random(ROASTS.length-1);
+    var fire = '';
+    var fireCount = random(3);
+    if (fireCount < 1)
+        fireCount = 1;
+    for(var i = 0; i<fireCount; i++) fire += '🔥';
     bot.sendMessage({
         to: channelID,
-        message: user + ' ' + ROASTS[roastNum]
+        message: user + ' ' + ROASTS[roastNum] + ' ' + fire
     });
 }
 

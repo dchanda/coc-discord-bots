@@ -161,7 +161,7 @@ function roast(channelID, args, userID) {
     }
     var roastNum = random(ROASTS.length-1);
     var fire = '';
-    var fireCount = random(3);
+    var fireCount = random(4);
     if (fireCount < 1)
         fireCount = 1;
     for(var i = 0; i<fireCount; i++) fire += '🔥';

@@ -159,7 +159,9 @@ function roast(channelID, args, userID) {
         if (tmpUser.indexOf(BOT_CONFIGS.botUserId) == -1)
             user = tmpUser;
     }
-    var roastNum = random(ROASTS.length-1);
+    var roastNum = random(ROASTS.length+1);
+    if (roastNum >= ROASTS.length)
+        roastNum = ROASTS.length-1
     var fire = '';
     var fireCount = random(4);
     if (fireCount < 1)

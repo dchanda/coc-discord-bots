@@ -650,8 +650,11 @@ function _announceUpgrades() {
                 if (latestTroops[troopName] > currentMemberData.Troops[troopName]) {
                     if (currentMemberData.Troops[troopName] == 0) 
                         message += '' + currentMemberData.name + ' unlocked ' + TROOP_NAMES[troopName] + '\n';
-                    else 
-                        message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + latestTroops[troopName] + '\n';
+                    else {
+                        for(var i=currentMemberData.Troops[troopName]+1; i<=latestTroops[troopName]; i++) {
+                            message += '' + currentMemberData.name + ' upgraded ' + TROOP_NAMES[troopName] + ' to lvl ' + i + '\n';
+                        }
+                    }
                     upgraded = true;
                     troopUpdates[troopName] = latestTroops[troopName];
                 }
@@ -661,8 +664,11 @@ function _announceUpgrades() {
                 if (latestSpells[spellName] > currentMemberData.Spells[spellName]) {
                     if (currentMemberData.Spells[spellName] == 0) 
                         message += '' + currentMemberData.name + ' unlocked ' + SPELL_NAMES[spellName] + '\n';
-                    else
-                        message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + latestSpells[spellName] + '\n';
+                    else {
+                        for(var i=currentMemberData.Spells[spellName]+1; i<=latestSpells[spellName]; i++) {
+                            message += '' + currentMemberData.name + ' upgraded ' + SPELL_NAMES[spellName] + ' to lvl ' + i + '\n';
+                        }
+                    }
                     upgraded = true;
                     spellUpdates[spellName] = latestSpells[spellName];
                 }

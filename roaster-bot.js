@@ -1,19 +1,12 @@
 const logger = require('./utils/logger.js');
-const clashapi = require('./utils/clashapi.js')
 const Discord = require('discord.io');
-const async = require('async');
 const scheduler = require('node-schedule');
-const moment = require('moment-timezone');
-const axios = require('axios');
-const cheerio = require('cheerio');
 
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/roaster-bot-configs.json');
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const ROASTS_CHANNELID = BOT_CONFIGS.roastsChannelId;
 const RESEARCH_DATA_BASEURL = 'https://clashofclans.fandom.com/wiki/';
-
-const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
 
 const ROASTS = [];
 const LEADERS = [];
@@ -23,8 +16,7 @@ const CHANNELS = {};
 const MAINTENANCE = BOT_CONFIGS.maintenance;
 
 // ---- GLOBAL VARIABLES -----
-var playersMap = {};
-var responseChannelId = null;
+
 
 // Initialize Discord Bot
 var bot = new Discord.Client({
@@ -48,6 +40,7 @@ bot.on('ready', function (evt) {
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
     readRoasts();
+    scheduler.scheduleJob('0 0 * * *', readRoasts);
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -141,14 +134,26 @@ function getServer() {
     return bot.servers[ALMOST_DIVORCED_SERVER_ID];
 }
 
-function readRoasts() {
-    bot.getMessages({
-        channelID: BOT_CONFIGS.roastsChannelId
-    }, function(err, msgs){
-        msgs.forEach( msg => {
-            console.log(msg.content);
-            ROASTS.push(msg.content);
-        });
+function readRoasts(messageId) {
+    var opts = {
+        channelID: BOT_CONFIGS.roastsChannelId,
+    };
+    if (messageId) {
+        opts["before"] = messageId;
+    } else {
+        ROASTS.length = 0;
+    }
+    bot.getMessages(opts, function(err, msgs){
+        if (msgs.length > 0) {
+            msgs.forEach( msg => {
+                console.log(msg.content);
+                ROASTS.push(msg.content);
+            });
+            readRoasts(msgs[msgs.length-1].id);            
+        } else {
+            console.log("Read " + ROASTS.length + " roasts!");
+            logger.info("Read " + ROASTS.length + " roasts!");
+        }
     });
 }
 

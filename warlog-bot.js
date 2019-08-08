@@ -25,6 +25,7 @@ const STAR_FULL = '⭐';
 const THUMBSUP = '👍';
 const WAR_LOG = BOT_CONFIGS.warlogTabName;
 const CLAIMS = BOT_CONFIGS.claimsTabName;
+const MAX_ROWS = 104;
 
 const LEADERS = [];
 const OFFICERS = [];
@@ -231,6 +232,7 @@ function fetchAndUpdateWarLog(auth) {
             logger.warn('Unable to fetch opponent clan Tag.');
             return;
         }
+        if (!res.data.values) return;
         opponentClanTag = res.data.values[0][0];
         clashapi.getAttackSummary('', opponentClanTag, _updateWarLog.bind({auth: auth}));
     });
@@ -428,7 +430,7 @@ function link(auth) {
 
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: WAR_LOG+'!A5:D54',
+        range: WAR_LOG+'!A5:D' + MAX_ROWS,
     }, (err, res) => {
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -507,7 +509,7 @@ function notify(auth) {
     const sheets = google.sheets({version: 'v4', auth});
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A54', WAR_LOG+'!D5:D54', WAR_LOG+'!E5:E54', WAR_LOG+'!G5:H54', CLAIMS+'!C2:C52']
+        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, CLAIMS+'!C2:C52']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -579,7 +581,7 @@ function summary(auth) {
     const sheets = google.sheets({version: 'v4', auth});
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A54', WAR_LOG+'!G5:H54', CLAIMS+'!E2:E41', CLAIMS+'!H1']
+        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, CLAIMS+'!E2:E41', CLAIMS+'!H1']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -674,7 +676,7 @@ function attack(auth) {
     var attacker = args.join(' ');
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A54', WAR_LOG+'!D5:D54', WAR_LOG+'!E5:E54', WAR_LOG+'!G5:H54', 'CLAIMS!E2:E41']
+        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, 'CLAIMS!E2:E41']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -981,7 +983,7 @@ function claims(auth) {
         //Do nothing.
         sheets.spreadsheets.values.batchGet({
             spreadsheetId: SPREADSHEET_ID,
-            ranges: [WAR_LOG+'!A5:A54', WAR_LOG+'!B5:B54', WAR_LOG+'!E5:E54', 'CLAIMS!B5:B54']
+            ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!B5:B'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, 'CLAIMS!B5:B'+MAX_ROWS]
             // valueRenderOption: 'UNFORMATTED_VALUE',
             // dateTimeRenderOption: 'SERIAL_NUMBER'
         }, (err, res) => { 
@@ -1055,7 +1057,7 @@ function checkClaims(auth) {
         //Do nothing.
         sheets.spreadsheets.values.batchGet({
             spreadsheetId: SPREADSHEET_ID,
-            ranges: [WAR_LOG+'!A5:A54', WAR_LOG+'!D5:D54', WAR_LOG+'!E5:E54', 'CLAIMS!B5:B54']
+            ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, 'CLAIMS!B5:B'+MAX_ROWS]
             // valueRenderOption: 'UNFORMATTED_VALUE',
             // dateTimeRenderOption: 'SERIAL_NUMBER'
         }, (err, res) => { 

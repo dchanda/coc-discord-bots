@@ -162,6 +162,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'hero':
                 researchInfo(channelID, args, true);
                 break;
+            case 'dates':
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     memberDate(channelID, args);

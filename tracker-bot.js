@@ -20,6 +20,7 @@ const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
 const MAX_TROOPS = {};
 const MAX_SPELLS = {};
+const MAX_AWAY_DAYS = 15;
 
 const MAINTENANCE = BOT_CONFIGS.maintenance;
 
@@ -762,9 +763,20 @@ function checkNewMembers() {
                             delete currentMembersMap[memberTag];
                         } else {
                             newMembers++;
-                            message += liveMember.name + ' re-joined us!\n';
+                            var now = new Date();
+                            var leaveDate = new Date();
+                            if (currentMembersMap[memberTag].leaveDate) 
+                                leaveDate = moment(currentMembersMap[memberTag].leaveDate);
+                            var daysAway = now.diff(leaveDate, 'days');
+                            if (daysAway <= MAX_AWAY_DAYS) {
+                                message += liveMember.name + ' re-joined us!\n';
+                            } else {
+                                message += liveMember.name + ' re-joined us after ' + daysAway + ' days!\n';
+                                currentMembersMap[memberTag].joinDate = now;
+                            }
                             currentMembersMap[memberTag].inClan = true;
-                            currentMembersMap[memberTag].save({fields: ['inClan']});
+                            currentMembersMap[memberTag].leaveDate = null;
+                            currentMembersMap[memberTag].save({fields: ['inClan', 'joinDate', 'leaveDate']});
                             delete currentMembersMap[memberTag];
                         }
                     } else {
@@ -780,6 +792,7 @@ function checkNewMembers() {
                             membersLeft++;
                             message += currentMember.name + ' is no longer with us.\n';
                         }
+                        currentMember.leaveDate = new Date();
                         currentMember.inClan = false;
                         currentMember.save({fields: ['inClan']});
                     }

@@ -26,7 +26,8 @@ PlayerData.init({
   elixirEscapade: {type: Sequelize.INTEGER},
   heroicHeist: {type: Sequelize.INTEGER},
   trophies: {type: Sequelize.INTEGER},
-  inClan: {type: Sequelize.BOOLEAN, defaultValue: true}
+  inClan: {type: Sequelize.BOOLEAN, defaultValue: true},
+  leaveDate: {type: Sequelize.DATE, allowNull: false}
 }, {
   sequelize,
   modelName: 'player_data',

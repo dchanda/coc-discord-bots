@@ -771,7 +771,7 @@ function checkNewMembers() {
                             var leaveDate = new Date();
                             if (currentMembersMap[memberTag].leaveDate) 
                                 leaveDate = moment(currentMembersMap[memberTag].leaveDate);
-                            var daysAway = now.diff(leaveDate, 'days');
+                            var daysAway = moment(now).diff(leaveDate, 'days');
                             if (daysAway <= MAX_AWAY_DAYS) {
                                 message += liveMember.name + ' re-joined us!\n';
                             } else {

@@ -27,7 +27,7 @@ PlayerData.init({
   heroicHeist: {type: Sequelize.INTEGER},
   trophies: {type: Sequelize.INTEGER},
   inClan: {type: Sequelize.BOOLEAN, defaultValue: true},
-  leaveDate: {type: Sequelize.DATE, allowNull: false}
+  leaveDate: {type: Sequelize.DATE, allowNull: true}
 }, {
   sequelize,
   modelName: 'player_data',

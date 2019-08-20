@@ -15,7 +15,8 @@ const RESEARCH_DATA_BASEURL = 'https://clashofclans.fandom.com/wiki/';
 const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
 
 const RESEARCH_DATA = {};
-const CLAN_TAG = BOT_CONFIGS.thisClanTag;
+//const CLAN_TAG = BOT_CONFIGS.thisClanTag;
+const CLAN_TAGS = BOT_CONFIGS.clanFamilyTags;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
 const MAX_TROOPS = {};
@@ -71,6 +72,11 @@ const SPELL_NAMES = {
     bat: 'Bat Spell',
 };
 
+const CLAN_NAMES = {
+    "#22V9VC28V": "Almost Divorced",
+    "#29829QQCY": "Mostly Divorced"
+}
+
 
 // ---- GLOBAL VARIABLES -----
 var playersMap = {};
@@ -121,7 +127,7 @@ bot.on('ready', function (evt) {
     cacheResearchData();
     setInterval(function() {
         checkNewMembers();
-    }, 30000);
+    }, 60000);
     // setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
@@ -764,6 +770,11 @@ function checkNewMembers() {
                     var liveMember = liveMembers[memberTag];
                     if (memberTag in currentMembersMap) {
                         if (currentMembersMap[memberTag].inClan) {
+                            if (currentMembersMap[memberTag].clan != liveMember.clan) {
+                                currentMembersMap[memberTag].clan = liveMember.clan
+                                currentMembersMap[memberTag].save({fields: ['clan']});
+                                message += liveMember.name + ' hopped over to ' + CLAN_NAMES[liveMember.clan];
+                            }
                             delete currentMembersMap[memberTag];
                         } else {
                             newMembers++;
@@ -780,7 +791,8 @@ function checkNewMembers() {
                             }
                             currentMembersMap[memberTag].inClan = true;
                             currentMembersMap[memberTag].leaveDate = null;
-                            currentMembersMap[memberTag].save({fields: ['inClan', 'joinDate', 'leaveDate']});
+                            currentMembersMap[memberTag].clan = liveMember.clan
+                            currentMembersMap[memberTag].save({fields: ['inClan', 'joinDate', 'leaveDate', 'clan']});
                             delete currentMembersMap[memberTag];
                         }
                     } else {
@@ -841,7 +853,7 @@ function convertToMap(membersList) {
  */
 function _fetchAndSaveMember(playerTag, resultHolder, callback) {
     logger.debug('Fetching data for memberTag - ' + playerTag);
-    clashapi.getJoinDate(playerTag, CLAN_TAG, function(err, joinDate) {
+    clashapi.getJoinDate(playerTag, CLAN_TAGS, function(err, joinDate) {
         if (err) {
             joinDate = new Date();
         }
@@ -859,6 +871,7 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
             player.name = playerInfo.name;
             player.townhallLevel = playerInfo.townHallLevel;
             player.joinDate = joinDate;
+            player.clan = playerInfo.clan;
 
             playerInfo.achievements.forEach( achievement => {
                 switch(achievement.name) {
@@ -963,22 +976,27 @@ function seedMembers() {
 }
 
 function getCurrentData(callback) {
-    clashapi.getClanInfo(CLAN_TAG, function(err, clanInfo) {
+    clashapi.getClanInfos(CLAN_TAGS, function(err, clanInfos) {
         if (err) {
             logger.warn('Error fetching Clan info');
             return;
         }
-        var members = clanInfo.memberList;
         var liveData = {};
-        members.forEach(member => {
-            playerAttribMap = {};
-            playerAttribMap.donationsReceived = member.donationsReceived;
-            playerAttribMap.trophies = member.trophies;
-            playerAttribMap.tag = member.tag;
-            playerAttribMap.name = member.name;
-            var player = models.PlayerData.build(playerAttribMap);
-            liveData[member.tag] = player;
-        });
+        for(var clanTag in clanInfos) {
+            var clanInfo = clanInfos[clanTag];
+            var members = clanInfo.memberList;
+            members.forEach(member => {
+                playerAttribMap = {
+                    "donationsReceived": member.donationsReceived,
+                    "trophies": member.trophies,
+                    "tag": member.tag,
+                    "name": member.name,
+                    "clan": clanTag,
+                }
+                var player = models.PlayerData.build(playerAttribMap);
+                liveData[member.tag] = player;
+            });
+        }
         callback(liveData);
     });
 }

@@ -9,10 +9,44 @@ var restClient = new RestClientLib();
 
 exports.getAttackSummary = getAttackSummary;
 exports.getClanInfo = getClanInfo;
+exports.getClanInfos = getClanInfos;
 exports.getPlayerInfo = getPlayerInfo;
 exports.getJoinDate = getJoinDate;
 
 function getClanInfo(clanTag, callback) {
+    var args = {
+        path: {'clanTag': encodeURIComponent(clanTag)},
+        headers: CLASH_CONFIG.auth
+    };
+    restClient.get(CLASH_CONFIG.urlPrefix + '/v1/clans/${clanTag}', args, function(responseJson, response) {
+        if (response.statusCode != 200) {
+            logger.warn('Clan information unavailable!');
+            logger.debug('Response status Code: ' + response.statusCode);
+            logger.debug('Response : ' + responseJson);
+            callback({message: 'Clash API Error!',
+                    code: response.statusCode}, 
+                null);
+            return;
+        }
+        var warEndTime = moment(responseJson);
+        callback(null, responseJson);
+    });
+}
+
+function getClanInfos(clanTags, callback) {
+    var clanInfoHolder = {};
+
+    clanTags.forEach(clanTag => {
+        _getClanInfoInternal(clanTag, function(err, clanInfo) {
+            clanInfoHolder[clanTag] = clanInfo;
+            if (Object.keys(clanInfoHolder).length == clanTags.length) {
+                callback(null, clanInfoHolder)
+            }
+        });
+    });
+}
+
+function _getClanInfoInternal(clanTag, callback) {
     var args = {
         path: {'clanTag': encodeURIComponent(clanTag)},
         headers: CLASH_CONFIG.auth
@@ -51,7 +85,7 @@ function getPlayerInfo(playerTag, callback) {
     });    
 }
 
-function getJoinDate(playerTag, clanTag, callback) {
+function getJoinDate(playerTag, clanTags, callback) {
     var args = { path:{'playerTag': playerTag.substring(1)} };
     restClient.get('https://api.clashofstats.com/players/${playerTag}/history/clans', args, function(responseJson, response) {
         if (response.statusCode != 200) {
@@ -64,7 +98,8 @@ function getJoinDate(playerTag, clanTag, callback) {
         var joinDate = null; 
         responseJson.log.forEach( clanStay => {
             var tmpJoinDate;
-            if (clanStay.tag == clanTag) {
+
+            if (clanTags.includes(clanStay.tag)) {
                 tmpJoinDate = moment(clanStay.start);
                 if (joinDate == null) {
                     joinDate = tmpJoinDate;

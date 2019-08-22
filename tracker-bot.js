@@ -773,7 +773,7 @@ function checkNewMembers() {
                             if (currentMembersMap[memberTag].clan != liveMember.clan) {
                                 currentMembersMap[memberTag].clan = liveMember.clan
                                 currentMembersMap[memberTag].save({fields: ['clan']});
-                                message += liveMember.name + ' hopped over to ' + CLAN_NAMES[liveMember.clan];
+                                message += liveMember.name + ' hopped over to ' + CLAN_NAMES[liveMember.clan] + '.\n';
                             }
                             delete currentMembersMap[memberTag];
                         } else {
@@ -784,9 +784,9 @@ function checkNewMembers() {
                                 leaveDate = moment(currentMembersMap[memberTag].leaveDate);
                             var daysAway = moment(now).diff(leaveDate, 'days');
                             if (daysAway <= MAX_AWAY_DAYS) {
-                                message += liveMember.name + ' re-joined us!\n';
+                                message += liveMember.name + ' re-joined us in **'+ CLAN_NAMES[liveMember.clan] +'**!\n';
                             } else {
-                                message += liveMember.name + ' re-joined us after ' + daysAway + ' days!\n';
+                                message += liveMember.name + ' re-joined us after ' + daysAway + ' days in **'+CLAN_NAMES[liveMember.clan]+'!\n';
                                 currentMembersMap[memberTag].joinDate = now;
                             }
                             currentMembersMap[memberTag].inClan = true;
@@ -797,7 +797,7 @@ function checkNewMembers() {
                         }
                     } else {
                         newMembers++;
-                        message += liveMember.name + ' joined us!\n';
+                        message += liveMember.name + ' joined us in **'+CLAN_NAMES[liveMember.clan]+'!\n';
                         saveMemberQueue.push(memberTag);
                     }
                 }
@@ -871,7 +871,7 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
             player.name = playerInfo.name;
             player.townhallLevel = playerInfo.townHallLevel;
             player.joinDate = joinDate;
-            player.clan = playerInfo.clan;
+            player.clan = playerInfo.clan.tag;
 
             playerInfo.achievements.forEach( achievement => {
                 switch(achievement.name) {

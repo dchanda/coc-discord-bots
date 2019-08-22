@@ -2,13 +2,12 @@ const fs = require('fs');
 const logger = require('./utils/logger.js');
 const readline = require('readline');
 const {google} = require('googleapis');
-var async = require('async');
-var Discord = require('discord.io');
-var moment = require('moment-timezone');
-var clashapi = require('./utils/clashapi.js');
-var stringify = require('json-stable-stringify');
-
-//var dateMath = require('date-arithmetic')
+const models = require('./model/clashmodels.js');
+const async = require('async');
+const Discord = require('discord.io');
+const moment = require('moment-timezone');
+const clashapi = require('./utils/clashapi.js');
+const stringify = require('json-stable-stringify');
 
 var discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
 var googleCredentials = require(process.env.CONFIGS_DIR + '/googleapi-credentials.json');
@@ -19,16 +18,15 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', ];
 const TOKEN_PATH = process.env.CONFIGS_DIR + '/warlogbot-googletoken.json';
 const SPREADSHEET_ID = BOT_CONFIGS.spreadsheetId;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
-const BOT_DEFAULT_CHANNELID = BOT_CONFIGS.defaultChannelId;
 const STAR_EMPTY = '☆'; 
 const STAR_FULL = '⭐'; 
 const THUMBSUP = '👍';
-const WAR_LOG = BOT_CONFIGS.warlogTabName;
 const CLAIMS = BOT_CONFIGS.claimsTabName;
+const CLAN_FAMILY = BOT_CONFIGS.clanFamily;
 const MAX_ROWS = 104;
-
-const LEADERS = [];
-const OFFICERS = [];
+const EXCLUSION_COLUMN = 'E';
+const WIN_COLOR = {"red": 0.41568628, "green": 0.65882355, "blue": 0.30980393};
+const LOSS_COLOR = {"red": 0.8};
 const CHANNELS = {};
 
 const MAINTENANCE = false;
@@ -48,7 +46,9 @@ setTimeout(function() {
     authorize(googleCredentials, checkClaims);
 }, 240000);
 
-scheduleWarLogUpdater(30000);
+for(clanTag in CLAN_FAMILY) {
+    scheduleWarLogUpdater(30000, clanTag);
+}
 
 //Refersh Clan Tag every 1 hr.
 opponentClanTagUpdater = setInterval( function() {
@@ -119,23 +119,39 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 authorize(googleCredentials, link.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'pnotify':
-                if (LEADERS.includes(userID) || OFFICERS.includes(userID))
-                    authorize(googleCredentials, notify.bind({'channelID': channelID}));
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, notify.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'claims':
                 authorize(googleCredentials, claims.bind({'channelID': channelID}));
                 break;
             case 'claim':
-                if (LEADERS.includes(userID) || OFFICERS.includes(userID))
-                    authorize(googleCredentials, claim.bind({'channelID': channelID, 'args': args}))
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, claim.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'unclaim':
-                if (LEADERS.includes(userID) || OFFICERS.includes(userID))
-                    authorize(googleCredentials, unclaim.bind({'channelID': channelID, 'args': args}))
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, unclaim.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'attack':
-                if (LEADERS.includes(userID) || OFFICERS.includes(userID))
-                    authorize(googleCredentials, attack.bind({'channelID': channelID, 'args': args}))
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, attack.bind({'channelID': channelID, 'args': args}));
+                break;
+            case 'endwar':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, endwar.bind({'channelID': channelID, 'args': args}));
+                break;
+            case 'addwar':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, addwar.bind({'channelID': channelID, 'args': args}));
+                break;
+            case 'setwarroster':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, getWarRoster);
+                break;
+            case 'confirmroster':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, confirmRoster.bind({'channelID': channelID, 'args': args}));
                 break;
          }
      } else {
@@ -177,104 +193,108 @@ function cacheUserRoles(server) {
     var roles = server.roles;
     var officer_role_id = '';
     var leader_role_id = '';
+
+    console.log("Roles->");
     for(var roleid in roles) {
         var role = roles[roleid];
-        if (role.name == 'Officer') {
-            officer_role_id = role.id;
-            continue;
-        } else if (role.name == 'Leader') {
-            leader_role_id = role.id;
-            continue;
-        }
+        console.log(role.id + " - " + role.name);
     }
 
     var members = server.members;
     for(var memberid in members) {
         var member = members[memberid];
-        // if (!member.bot) {
-        //     console.log(member.username + "  -  " + member.id);
-        // }
-        if (member.roles.includes(officer_role_id))
-            OFFICERS.push(member.id);
-        if (member.roles.includes(leader_role_id))
-            LEADERS.push(member.id);
+        for(var clanTag in CLAN_FAMILY) {
+            clanFamilyPrefs = CLAN_FAMILY[clanTag];
+            if (!("privilegedMembers" in clanFamilyPrefs)) 
+                clanFamilyPrefs["privilegedMembers"] = [];
+            privilegedRoleIds =  clanFamilyPrefs.privilegedRoleIds;
+            clanFamilyPrefs.privilegedRoleIds.forEach(roleId => {
+                if (roleId && member.roles.includes(roleId))
+                    clanFamilyPrefs["privilegedMembers"].push(member.id);
+            });
+        }
     }
-
 }
 
-function scheduleWarLogUpdater(timeInMilliSeconds) {
-    if (timeInMilliSeconds == warLogUpdateInterval) return;
-    if (warLogUpdater) {
-        clearInterval(warLogUpdater);
+function scheduleWarLogUpdater(timeInMilliSeconds, clanTag) {
+    var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+    if ("warLogUpdateInterval" in clanFamilyPrefs) {
+        if (timeInMilliSeconds == clanFamilyPrefs["warLogUpdateInterval"]) return;
+        if ("clanwarLogUpdater" in clanFamilyPrefs && clanFamilyPrefs["clanwarLogUpdater"])
+            clearInterval(clanFamilyPrefs["clanwarLogUpdater"]);
     }
+
     // Update war log every 30secs.
-    warLogUpdater = setInterval( function() {
-        authorize(googleCredentials, fetchAndUpdateWarLog);
+    clanFamilyPrefs["clanwarLogUpdater"] = setInterval( function() {
+        authorize(googleCredentials, fetchAndUpdateWarLog.bind({clanTag: clanTag}));
     }, timeInMilliSeconds);
-    warLogUpdateInterval = timeInMilliSeconds;
+    logger.debug("Scheduled warlog updater thread for '" + clanTag + "'");
+    clanFamilyPrefs["warLogUpdateInterval"] = timeInMilliSeconds;
 }
 
 function fetchAndUpdateWarLog(auth) {
+    var clanTag = this.clanTag;
     const sheets = google.sheets({version: 'v4', auth});
-    if (opponentClanTag) {
-        if (opponentClanTag == 'X') {
-            return;
-        } else {
-            clashapi.getAttackSummary('', opponentClanTag, _updateWarLog.bind({auth: auth}));
-            return;
-        }
+    var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+    if ("opponentClanTag" in clanFamilyPrefs && clanFamilyPrefs["opponentClanTag"] && clanFamilyPrefs["opponentClanTag"]!='X') {
+        clashapi.getAttackSummary('', clanFamilyPrefs["opponentClanTag"], _updateWarLog.bind({auth: auth, clanTag: clanTag}));
+        return;
     }
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: WAR_LOG+'!G2',
+        range: clanFamilyPrefs.warsheet+'!G2',
     }, (err, res) => { 
         if(err) {
             logger.warn('Unable to fetch opponent clan Tag.');
             return;
         }
         if (!res.data.values) return;
-        opponentClanTag = res.data.values[0][0];
-        clashapi.getAttackSummary('', opponentClanTag, _updateWarLog.bind({auth: auth}));
+        clanFamilyPrefs["opponentClanTag"] = res.data.values[0][0];
+        clashapi.getAttackSummary('', clanFamilyPrefs["opponentClanTag"], _updateWarLog.bind({auth: auth, clanTag: clanTag}));
     });
 }
 
 function _updateWarLog(err, attackSummary) {
     var auth = this.auth;
+    var clanTag = this.clanTag;
+    var warsheet = CLAN_FAMILY[clanTag].warsheet;
+    var baseStatusColumn = CLAN_FAMILY[clanTag].baseStatusColumn;
+
     if (err) {
         if (err.code == 100) {
             var duration = err.startTime.diff(moment(), 'milliseconds');
             logger.info('War starts in - ' + duration + 'ms. Rescheduling the update interval.');
-            scheduleWarLogUpdater(duration);
+            scheduleWarLogUpdater(duration, clanTag);
             return;
         } else if (err.code == 403) {
             logger.info('War log is not public. Changing the update interval to 1hr.');
-            scheduleWarLogUpdater(3600000);
+            scheduleWarLogUpdater(3600000, clanTag);
             return;
         } else {
             logger.info('Error while fetching war log: ' + err);
             return;
         }
     }
-    scheduleWarLogUpdater(30000);
+    scheduleWarLogUpdater(30000, clanTag);
     const sheets = google.sheets({version: 'v4', auth});
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:D54', WAR_LOG+'!E5:E54']
+        ranges: [warsheet+'!A5:D54', warsheet+'!E5:E54']
     }, (err, res) => { 
         if(err) {
             logger.warn('Unable to fetch Clan Members data from Sheets.');
             return;
         }
-        //If last update was more than 5 mins ago, we force an update.
-        if ((new Date().getTime() - warLogLastUpdateTime) > 300000) previousAttackSummary = null;
-        if (previousAttackSummary) {
-            if (stringify(previousAttackSummary) === stringify(attackSummary)) {
-                logger.info('No change in war log. Skipping updates.');
-                previousAttackSummary = attackSummary;
-                return;
-            }
-        }
-        previousAttackSummary = attackSummary;
+        // //If last update was more than 5 mins ago, we force an update.
+        // if ((new Date().getTime() - warLogLastUpdateTime) > 300000) previousAttackSummary = null;
+        // if (previousAttackSummary) {
+        //     if (stringify(previousAttackSummary) === stringify(attackSummary)) {
+        //         logger.info('No change in war log. Skipping updates.');
+        //         previousAttackSummary = attackSummary;
+        //         return;
+        //     }
+        // }
+        // previousAttackSummary = attackSummary;
         var playersData = res.data.valueRanges[0].values;
         var claims = res.data.valueRanges[1].values;
         var idx = 0;
@@ -282,6 +302,7 @@ function _updateWarLog(err, attackSummary) {
         var messages = [];
         var updateData = [];
         var resolvedClaims = []; // Array of Arrays - [PlayerName, DiscordId, ClaimedNum., StarsGained]
+        var discordChannelId = CLAN_FAMILY[clanTag].discordChannelId;
         for(var i=0; i<playersData.length; i++) {
             var playerTag = playersData[i][1];
             if (playerTag in attackSummary) {
@@ -312,8 +333,8 @@ function _updateWarLog(err, attackSummary) {
             if (stars == null) stars = '';
             baseStatus.push([stars]);
         });
-        updateData.push({range: WAR_LOG+'!G5:H'+ (warLogUpdate.length+4),values: warLogUpdate});
-        updateData.push({range: CLAIMS+'!E2:E'+(baseStatus.length+1),values: baseStatus});
+        updateData.push({range: warsheet+'!G5:H'+ (warLogUpdate.length+4),values: warLogUpdate});
+        updateData.push({range: CLAIMS+'!'+baseStatusColumn+'3:'+baseStatusColumn+(baseStatus.length+2),values: baseStatus});
         sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID,
             resource: {
@@ -336,7 +357,7 @@ function _updateWarLog(err, attackSummary) {
                 var msg = '<@' + resolvedClaim[1] + '> Goodjob by ' + resolvedClaim[0] + ' on #' + resolvedClaim[2] + '!';
                 sleep(sleepDuration).then(() => {
                     bot.sendMessage({
-                        to: BOT_DEFAULT_CHANNELID,
+                        to: discordChannelId,
                         message: msg
                     });
                 });
@@ -344,7 +365,7 @@ function _updateWarLog(err, attackSummary) {
                 var msg = '<@' + resolvedClaim[1] + '> Tough break on #' + resolvedClaim[2] + '! Better luck next time!';
                 sleep(sleepDuration).then(() => { 
                     bot.sendMessage({
-                        to: BOT_DEFAULT_CHANNELID,
+                        to: discordChannelId,
                         message: msg
                     });
                 });
@@ -407,18 +428,345 @@ function help(channelID) {
             }, {
                 name: '!attack <player name> <base num> <num stars>',
                 value: 'Updates the "Excel Sheet" with all the info.. Use this if there wasnt a claim for the base.'
+            }, {
+                name: '!endwar <w/l> <finalscore>',
+                value: 'Closes the current war in progress with the final score.'
+            }, {
+                name: '!addwar <opponent clanTag> <roster size>',
+                value: 'Adds a new War column with the given opponent clan tag.'
             }]
           }
     })
 }
 
+function addwar(auth) {
+    const sheets = google.sheets({version: 'v4', auth});
+    const channelID = this.channelID;
+    var args = this.args;
+    var opponentClanTag = args[0];
+    var warSize = 40;
+    if (args.length > 1)
+        warSize = parseInt(args[1]);
+
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+
+    var warsheet = clanFamilyPrefs.warsheet;
+    var sheetId = clanFamilyPrefs.sheetId;
+
+    sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges:[ warsheet+'!G1:G4'],
+        includeGridData: true
+    }, (err, res) => {
+        var lastWarLog = res.data.sheets[0].data[0].rowData;
+        
+        var clanTagCell = lastWarLog[1].values[0];
+        var lastOpponentTag = "";
+        var lastOpponent = "";
+        if ("formattedValue" in clanTagCell) {
+            lastOpponentTag = clanTagCell.formattedValue;
+            lastOpponent = lastWarLog[0].values[0].formattedValue;
+        }
+
+        if (lastOpponentTag == opponentClanTag) {
+            bot.sendMessage({
+                to: channelID,
+                message: "War with **" + lastOpponent + "** *(" + lastOpponentTag + ")* is already in progress."
+            });
+            return;
+        }
+        var backgroundColor = clanTagCell.effectiveFormat.backgroundColor;
+        if (backgroundColor.red == 1) {
+            bot.sendMessage({
+                to: channelID,
+                message: "Please end the war with **" + lastOpponent + "** *(" + lastOpponentTag + ")* using `!endwar` command."
+            });
+            return;
+        }
+        var warDate = moment(new Date()).format('D MMM YYYY');
+        clashapi.getClanInfo(opponentClanTag, (err, clanInfo) => {
+            if (err) {
+                if (err.code == 404) {
+                    bot.sendMessage({
+                        to: channelID,
+                        message: "Invalid clan tag - '"+opponentClanTag+"'"
+                    });
+                    return;
+                }
+                bot.sendMessage({
+                    to: channelID,
+                    message: "Couldnt get Opponent Clan information!"
+                });
+                return;
+            }
+            var insertReq = {
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        "insertRange": {
+                            "range": {
+                                "sheetId": sheetId,
+                                "startColumnIndex": 4,
+                                "endColumnIndex": 6,
+                            },
+                            "shiftDimension": "COLUMNS"
+                        }
+                    },{
+                        "mergeCells": {
+                            "range": {
+                                "sheetId": sheetId,
+                                "startRowIndex": 0,
+                                "startColumnIndex": 6, 
+                                "endRowIndex": 4,
+                                "endColumnIndex": 8
+                            },
+                            "mergeType": "MERGE_ROWS"
+                        }
+                    },{
+                        "updateCells": {
+                            "rows": [{
+                                "values": [{
+                                    "userEnteredValue": {
+                                        "stringValue": clanInfo.name
+                                    }
+                                }]
+                            },{
+                                "values": [{
+                                    "userEnteredValue": {
+                                        "stringValue": opponentClanTag
+                                    }
+                                }]
+                            },{
+                                "values": [{
+                                    "userEnteredValue": {
+                                        "stringValue": "X"
+                                    }
+                                }]
+                            },{
+                                "values": [{
+                                    "userEnteredValue": {
+                                        "stringValue": warDate
+                                    }
+                                }]
+                            }],
+                            "fields": "userEnteredValue/stringValue",
+                            "range": {
+                                "sheetId": sheetId,
+                                "startRowIndex": 0,
+                                "startColumnIndex": 6,
+                                "endRowIndex": 4,
+                                "endColumnIndex": 7
+                            }
+                        }
+                    }],
+                }
+            };
+            sheets.spreadsheets.batchUpdate(insertReq, (err, res)=> {
+                if (clanInfo.isWarLogPublic) {
+                    logger.info("Update War Roster");
+                } else {
+                    getWarRoster(auth, channelID);
+                }
+            });
+        });
+    });
+}
+
+function getWarRoster(auth, channelID) {
+    channelID = "529782827261100079"; //This is for testing only.
+    var thisClanTag = getClanTagFromChannel(channelID);
+    where = {clan: thisClanTag};
+    models.PlayerData.findAll({ 
+        where: where,
+        order: [
+            ['townhallLevel', 'DESC']
+        ]
+    }).then(clanMembers => {
+        console.log("Found " + clanMembers.length + " Members in clan.");
+        var message = "";
+        var idx = 0;
+        clanMembers.forEach(member => {
+            message = "`" + member.name + " (TH" + member.townhallLevel + ")`";
+            var queueObj = {
+                operation: 'sendMessage',
+                input: {to: channelID, message: message},
+                callback: warRosterCallback.bind({tag: member.tag})
+            }
+            botOperationQueue.enqueue(queueObj);
+        });
+    });
+}
+
+const botOperationQueue = new Queue();
+const rosterMessageIds = {};
+
+function warRosterCallback(err, obj) {
+    if (err) {
+        console.log(this.tag + ":Error - " + err.response);
+    } else {
+        console.log(this.tag + ": " + obj.id);
+        rosterMessageIds[this.tag] = obj.id;
+        var queueObj = {
+            operation: 'addReaction',
+            input: {channelID: obj.channel_id, messageID: obj.id, reaction: "✅"},
+        }
+        botOperationQueue.enqueue(queueObj);
+
+        queueObj = {
+            operation: 'addReaction',
+            input: {channelID: obj.channel_id, messageID: obj.id, reaction: "❎"},
+        }
+        botOperationQueue.enqueue(queueObj);
+    }
+}
+
+setInterval(invokeBotOperation, 1000);
+
+function invokeBotOperation() {
+    var queueObj = botOperationQueue.dequeue();
+    if (queueObj) {
+        switch(queueObj.operation) {
+            case 'sendMessage':
+                bot.sendMessage(queueObj.input, queueObj.callback);
+                break;
+            case 'addReaction':
+                bot.addReaction(queueObj.input);
+                break; 
+        }
+    }
+}
+
+function endwar(auth) {
+    const channelID = this.channelID;
+    const sheets = google.sheets({version: 'v4', auth});
+    var args = this.args;
+    var finalScore = args.pop();
+    var result = args.pop();
+ 
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+    
+    var warsheet = clanFamilyPrefs.warsheet;
+    var sheetId = clanFamilyPrefs.sheetId;
+
+    sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges:[ warsheet+'!G1:G4'],
+        includeGridData: true
+    }, (err, res) => {
+        var lastWarLog = res.data.sheets[0].data[0].rowData;
+        
+        var clanTagCell = lastWarLog[1].values[0];
+        var lastOpponentTag = "";
+        var lastOpponent = "";
+        var lastWarDate = "";
+        if ("formattedValue" in clanTagCell) {
+            lastOpponentTag = clanTagCell.formattedValue;
+            lastOpponent = lastWarLog[0].values[0].formattedValue;
+            lastWarDate = lastWarLog[3].values[0].formattedValue;
+        }
+
+        var backgroundColor = clanTagCell.effectiveFormat.backgroundColor;
+        if (backgroundColor.red != 1) {
+            bot.sendMessage({
+                to: channelID,
+                message: "War with **" + lastOpponent + "** *(" + lastOpponentTag + ")* has already ended."
+            });
+            return;
+        }
+        
+        var bgColor = WIN_COLOR;
+        if (result.toUpperCase() == "L" || result.toUpperCase() == "LOSS")
+            bgColor = LOSS_COLOR;
+        var endWarReq = {
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                requests: [{
+                    "updateCells": {
+                        "rows": [{
+                            "values": [{
+                                "userEnteredValue": {
+                                    "stringValue": lastOpponent
+                                },
+                                "userEnteredFormat": {
+                                    "backgroundColor": bgColor
+                                }
+                            }]
+                        },{
+                            "values": [{
+                                "userEnteredValue": {
+                                    "stringValue": lastOpponentTag
+                                },
+                                "userEnteredFormat": {
+                                    "backgroundColor": bgColor
+                                }
+                            }]
+                        },{
+                            "values": [{
+                                "userEnteredValue": {
+                                    "stringValue": finalScore
+                                },
+                                "userEnteredFormat": {
+                                    "backgroundColor": bgColor
+                                }
+                            }]
+                        },{
+                            "values": [{
+                                "userEnteredValue": {
+                                    "stringValue": lastWarDate
+                                },
+                                "userEnteredFormat": {
+                                    "backgroundColor": bgColor
+                                }
+                            }]
+                        }],
+                        "fields": "userEnteredFormat/backgroundColor,userEnteredValue/stringValue",
+                        "range": {
+                            "sheetId": sheetId,
+                            "startRowIndex": 0,
+                            "startColumnIndex": 6,
+                            "endRowIndex": 4,
+                            "endColumnIndex": 7
+                        }
+                    }
+                }],
+            }
+        };
+        sheets.spreadsheets.batchUpdate(endWarReq, (err, res)=> {
+            if (err) {
+                bot.sendMessage({
+                    to: channelID,
+                    message: "Something went wrong... Sorry!"
+                });
+                logger.error(err);
+                return;
+            }
+            bot.sendMessage({
+                to: channelID,
+                message: "Done"
+            })
+        });
+
+    });
+}
+
 function link(auth) {
     const channelID = this.channelID;
     var args = this.args;
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+
     if (args.length < 2) {
         bot.sendMessage({
             to: channelID,
             message: 'Insufficient information provided. \nUsage: !link <player name or player tag> @<discord name>'
+        });
+        return;
+    }
+    if (clanFamilyPrefs == null) {
+        bot.sendMessage({
+            to: channelID,
+            message: 'Please run this in appropriate channel - ' + getKnownChannelsMsg()
         });
         return;
     }
@@ -430,7 +778,7 @@ function link(auth) {
 
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: WAR_LOG+'!A5:D' + MAX_ROWS,
+        range: clanFamilyPrefs.warsheet +'!A5:D' + MAX_ROWS,
     }, (err, res) => {
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -468,7 +816,7 @@ function link(auth) {
         }
         //Need to update discord id of this player.
         data: [{
-                    range: WAR_LOG+'!E'+idx,
+                    range: clanFamilyPrefs.warsheet+'!E'+idx,
                     values: [['']]
                 }, {
                     range: CLAIMS + '!A'+idx,
@@ -476,10 +824,10 @@ function link(auth) {
                 }]
         data = [];
         if (playerName.startsWith('#'))
-            data.push({range: WAR_LOG+'!B'+(idx+5), values: [[playerName]]});
+            data.push({range: clanFamilyPrefs.warsheet+'!B'+(idx+5), values: [[playerName]]});
         else 
-            data.push({range: WAR_LOG+'!A'+(idx+5), values: [[playerName]]});
-        data.push({range: WAR_LOG+'!D'+(idx+5), values: [[playerDiscordId]]});
+            data.push({range: clanFamilyPrefs.warsheet+'!A'+(idx+5), values: [[playerName]]});
+        data.push({range: clanFamilyPrefs.warsheet+'!D'+(idx+5), values: [[playerDiscordId]]});
 
         sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID,
@@ -505,11 +853,18 @@ function link(auth) {
 }
 
 function notify(auth) {
-    const channelID = BOT_DEFAULT_CHANNELID;
+    const channelID = this.channelID;
     const sheets = google.sheets({version: 'v4', auth});
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    const warsheet = clanFamilyPrefs.warsheet;
+
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, CLAIMS+'!C2:C52']
+        ranges: [warsheet+'!A5:A'+MAX_ROWS, 
+                 warsheet+'!D5:D'+MAX_ROWS, 
+                 warsheet+'!E5:E'+MAX_ROWS, 
+                 arsheet+'!G5:H'+MAX_ROWS, 
+                 CLAIMS+'!'+EXCLUSION_COLUMN+'2:'+EXCLUSION_COLUMN+'52']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -548,11 +903,13 @@ function notify(auth) {
                 if ( element[0] && element[0] !='' )
                     message += ' <' + '@' + element[0] + '> ' + element[1];
             })
-            message += ' have 2 attacks left in war. Always get both your attacks in.';
-            bot.sendMessage({
-                to: channelID,
-                message: message
-            });
+            if (message.length > 1) {
+                message += ' have 2 attacks left in war. Always get both your attacks in.';
+                bot.sendMessage({
+                    to: channelID,
+                    message: message
+                });
+            }
         }
         if (oneAttackRemainingList.length > 0) {
             var message = '';
@@ -579,9 +936,17 @@ function summary(auth) {
     const channelID = this.channelID;
     const detail = this.detail;
     const sheets = google.sheets({version: 'v4', auth});
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return;
+    }
+    const warsheet = clanFamilyPrefs.warsheet;
+    const baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
+
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, CLAIMS+'!E2:E41', CLAIMS+'!H1']
+        ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, CLAIMS+'!'+baseStatusColumn+'3:'+baseStatusColumn+'42', CLAIMS+'!'+baseStatusColumn+'2']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -660,8 +1025,14 @@ function summary(auth) {
 }
 
 function attack(auth) {
-    //const channelID = BOT_DEFAULT_CHANNELID;
     const channelID = this.channelID;
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return;
+    }
+
     var args = this.args;
     if (args.length < 2) {
         bot.sendMessage({
@@ -674,9 +1045,16 @@ function attack(auth) {
     var stars = parseInt(args.pop());
     var attackedBaseNumber = parseInt(args.pop());
     var attacker = args.join(' ');
+    const warsheet = clanFamilyPrefs.warsheet;
+    const baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
+    const basesAttackedColumn = clanFamilyPrefs.basesAttackedColumn;
+
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, WAR_LOG+'!G5:H'+MAX_ROWS, 'CLAIMS!E2:E41']
+        ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!D5:D'+MAX_ROWS, 
+                 warsheet+'!E5:E'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, 
+                 'CLAIMS!'+baseStatusColumn+'3:'+baseStatusColumn+'42',
+                 'CLAIMS!'+basesAttackedColumn+'5:'+basesAttackedColumn+MAX_ROWS]
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -691,6 +1069,7 @@ function attack(auth) {
         const playerClaims = res.data.valueRanges[2].values;
         const attackLog = res.data.valueRanges[3].values;
         const baseStatus = res.data.valueRanges[4].values;
+        const basesAttacked = res.data.valueRanges[5].values;
         var firstAttack = true;
         let playerIdx = -1;
         if (attacker == '')
@@ -698,13 +1077,26 @@ function attack(auth) {
         else  
             playerIdx = search2D(playerNames, 0, attacker);
         
+        basesAttackedByPlayer = [];
+        if (basesAttacked && basesAttacked[playerIdx] && basesAttacked[playerIdx][0])
+            basesAttackedByPlayer = basesAttacked[playerIdx][0].split(',');
+
+        if (basesAttackedByPlayer.includes(""+attackedBaseNumber)) {
+            logger.info("Already recorded the attack. Ignoring command.");
+            bot.sendMessage({
+                to: channelID,
+                message: 'I knew that already!'
+            });
+            return;
+        }
+        basesAttackedByPlayer.push(""+attackedBaseNumber);
         var data = [];
 
         if (baseStatus && baseStatus[attackedBaseNumber-1] && (''+baseStatus[attackedBaseNumber-1][0] != '3')) {
             //This is to record the current number of stars on a base. If already 3 starred, then no need to update.
-            data.push([{range: CLAIMS+'!E'+(attackedBaseNumber+1), values: [[stars]]}]); 
-        } else if (!baseStatus || !baseStatus[attackedBaseNumber-1]) {
-            data.push([{range: CLAIMS+'!E'+(attackedBaseNumber+1), values: [[stars]]}]); 
+            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+2), values: [[stars]]}]); 
+        } else if (!baseStatus || !baseStatus[attackedBaseNumber]) {
+            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+2), values: [[stars]]}]); 
         }
         
         if (playerIdx != -1) {
@@ -728,9 +1120,11 @@ function attack(auth) {
                 });
             }
             //This is removing the Claim. (Claim column)
-            data.push({range: WAR_LOG+'!E'+(playerIdx+5),values: [['']]});
+            data.push({range: warsheet+'!E'+(playerIdx+5),values: [['']]});
             //This is the attack record (could be col G or H.)
-            data.push({range: WAR_LOG+'!'+(firstAttack?'G':'H')+(playerIdx+5),values: [[stars]]});
+            data.push({range: warsheet+'!'+(firstAttack?'G':'H')+(playerIdx+5),values: [[stars]]});
+            //This is to record which bases the player has attacked.
+            data.push({range: CLAIMS+'!'+basesAttackedColumn+(playerIdx+5), values: [[basesAttackedByPlayer.join(',')]]});
             //This is to update the claim timestamp
             data.push({range: CLAIMS+'!A'+(playerIdx+5),values: [[moment(new Date()).tz('America/New_York').format('YYYY/M/D HH:mm:s')]]});
         } else {
@@ -859,6 +1253,10 @@ function unclaim(auth) {
 
 function claim(auth) {
     const channelID = this.channelID;
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null)
+        return unknownChannelMessage(channelID);
+
     const args = this.args;
     if (args.length < 2) {
         bot.sendMessage({
@@ -873,7 +1271,7 @@ function claim(auth) {
 
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: WAR_LOG+'!A5:H54',
+        range: clanFamilyPrefs.warsheet+'!A5:H54',
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -926,10 +1324,10 @@ function claim(auth) {
             spreadsheetId: SPREADSHEET_ID,
             resource: {
                 data: [{
-                    range: WAR_LOG+'!E'+idx,
+                    range: clanFamilyPrefs.warsheet+'!E'+idx,
                     values: [[target]]
                 }, {
-                    range: CLAIMS + '!A'+idx,
+                    range: CLAIMS + '!'+clanFamilyPrefs.claimTimeColumn+idx,
                     values: [[moment(new Date()).tz('America/New_York').format('YYYY/M/D HH:mm:s')]]
                     // values: [[new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')]]
                 }],
@@ -971,7 +1369,13 @@ function search2D(someArray, column, searchString) {
 
 function claims(auth) {
     const channelID = this.channelID;
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+
     const sheets = google.sheets({version: 'v4', auth});
+    const warsheet = clanFamilyPrefs.warsheet;
+    const claimAgeColumn = clanFamilyPrefs.claimAgeColumn;
+
     sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: CLAIMS+'!A1',
@@ -983,9 +1387,10 @@ function claims(auth) {
         //Do nothing.
         sheets.spreadsheets.values.batchGet({
             spreadsheetId: SPREADSHEET_ID,
-            ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!B5:B'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, 'CLAIMS!B5:B'+MAX_ROWS]
-            // valueRenderOption: 'UNFORMATTED_VALUE',
-            // dateTimeRenderOption: 'SERIAL_NUMBER'
+            ranges: [warsheet+'!A5:A'+MAX_ROWS, 
+                     warsheet+'!B5:B'+MAX_ROWS, 
+                     warsheet+'!E5:E'+MAX_ROWS, 
+                     'CLAIMS!'+claimAgeColumn+'5:'+claimAgeColumn+MAX_ROWS]
         }, (err, res) => { 
             if (err) {
                 logger.warn('The Google API returned an error: ' + err);
@@ -1039,13 +1444,22 @@ function getClaimString(claimTime) {
     return claimTimeStr;
 }
 
+
+function checkClaims(auth) {
+    var numClans = Object.keys(CLAN_FAMILY).length;
+    for(clanTag in CLAN_FAMILY) {
+        numClans--;
+        checkClaimsForClan(auth, CLAN_FAMILY[clanTag], numClans==0);
+    }
+}
 /**
  *
  *
  */
-function checkClaims(auth) {
-    const channelID = BOT_DEFAULT_CHANNELID;
+function checkClaimsForClan(auth, clanFamilyPrefs, reschedule) {
+    const channelID = clanFamilyPrefs.discordChannelId;
     const sheets = google.sheets({version: 'v4', auth});
+
     sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: 'CLAIMS!A1',
@@ -1054,12 +1468,12 @@ function checkClaims(auth) {
             values: [['=NOW()']]
         }
     }, (err, result) => {
-        //Do nothing.
+        var warsheet = clanFamilyPrefs.warsheet;
+        var claimAgeColumn = clanFamilyPrefs.claimAgeColumn;
+
         sheets.spreadsheets.values.batchGet({
             spreadsheetId: SPREADSHEET_ID,
-            ranges: [WAR_LOG+'!A5:A'+MAX_ROWS, WAR_LOG+'!D5:D'+MAX_ROWS, WAR_LOG+'!E5:E'+MAX_ROWS, 'CLAIMS!B5:B'+MAX_ROWS]
-            // valueRenderOption: 'UNFORMATTED_VALUE',
-            // dateTimeRenderOption: 'SERIAL_NUMBER'
+            ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!D5:D'+MAX_ROWS, warsheet+'!E5:E'+MAX_ROWS, 'CLAIMS!'+claimAgeColumn+'5:'+claimAgeColumn+MAX_ROWS]
         }, (err, res) => { 
             if (err) {
                 logger.warn('The Google API returned an error: ' + err);
@@ -1099,12 +1513,19 @@ function checkClaims(auth) {
                         }
                     }
                 }
-            } 
-            setTimeout(function() {
-                authorize(googleCredentials, checkClaims);
-            }, 240000);
+            }
+            if (reschedule)
+                setTimeout(function() {
+                    authorize(googleCredentials, checkClaims);
+                }, 240000);
         });
     });
+}
+
+function isPrivileged(userID, channelID, cmd) {
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    var privilegedMembers = clanFamilyPrefs.privilegedMembers;
+    return privilegedMembers.includes(userID);
 }
 
 /**
@@ -1156,6 +1577,43 @@ function getNewToken(oAuth2Client, callback) {
     });
 }
 
+function getClanTagFromChannel(channelID) {
+    for(clanTag in CLAN_FAMILY) {
+        var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+        if (clanFamilyPrefs.discordChannelId == channelID) {
+            return clanTag;
+        }
+    }
+    return null;
+}
+
+function getKnownChannelsMsg() {
+    var message = "";
+    for(clanTag in CLAN_FAMILY) {
+        var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+        if (message.length > 0)
+            message += " or ";
+        message += "<#" + clanFamilyPrefs.discordChannelId + ">"
+    }
+    return message;
+}
+
+function getPreferencesFromChannel(channelID) {
+    for(clanTag in CLAN_FAMILY) {
+        var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+        if (clanFamilyPrefs.discordChannelId == channelID) {
+            return clanFamilyPrefs;
+        }
+    }
+    return null;
+}
+
+function unknownChannelMessage(channelID) {
+    bot.sendMessage({
+        to: channelID,
+        message: "Please run this command from appropriate channel - " + getKnownChannelsMsg
+    });
+}
 
 function compareMaps(map1, map2) {
     var testVal;
@@ -1177,3 +1635,60 @@ function compareMaps(map1, map2) {
 const sleep = (milliseconds) => {
     return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
+
+
+function Queue() {
+
+    // initialise the queue and offset
+    var queue  = [];
+    var offset = 0;
+
+    // Returns the length of the queue.
+    this.getLength = function(){
+        return (queue.length - offset);
+    }
+
+    // Returns true if the queue is empty, and false otherwise.
+    this.isEmpty = function(){
+        return (queue.length == 0);
+    }
+
+    /* Enqueues the specified item. The parameter is:
+     *
+     * item - the item to enqueue
+     */
+    this.enqueue = function(item){
+        queue.push(item);
+    }
+
+    /* Dequeues an item and returns it. If the queue is empty, the value
+     * 'undefined' is returned.
+     */
+    this.dequeue = function() {
+
+        // if the queue is empty, return immediately
+        if (queue.length == 0) return undefined;
+
+        // store the item at the front of the queue
+        var item = queue[offset];
+
+        // increment the offset and remove the free space if necessary
+        if (++ offset * 2 >= queue.length){
+            queue  = queue.slice(offset);
+            offset = 0;
+        }
+
+        // return the dequeued item
+        return item;
+
+    }
+
+    /* Returns the item at the front of the queue (without dequeuing it). If the
+     * queue is empty then undefined is returned.
+     */
+    this.peek = function(){
+        return (queue.length > 0 ? queue[offset] : undefined);
+    }
+
+}
+

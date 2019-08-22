@@ -125,6 +125,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'claims':
                 authorize(googleCredentials, claims.bind({'channelID': channelID}));
                 break;
+            case 'roster':
+                authorize(googleCredentials, roster.bind({'channelID': channelID}));
+                break;
             case 'claim':
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, claim.bind({'channelID': channelID, 'args': args}));
@@ -449,7 +452,10 @@ function addwar(auth) {
         warSize = parseInt(args[1]);
 
     var clanFamilyPrefs = getPreferencesFromChannel(channelID);
-    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return ;
+    }
 
     var warsheet = clanFamilyPrefs.warsheet;
     var sheetId = clanFamilyPrefs.sheetId;
@@ -637,6 +643,13 @@ function invokeBotOperation() {
     }
 }
 
+function confirmRoster(auth) {
+    for(tag in rosterMessageIds) {
+        var messageId = rosterMessageIds[tag];
+        bot.getReaction()
+    }
+}
+
 function endwar(auth) {
     const channelID = this.channelID;
     const sheets = google.sheets({version: 'v4', auth});
@@ -645,7 +658,10 @@ function endwar(auth) {
     var result = args.pop();
  
     var clanFamilyPrefs = getPreferencesFromChannel(channelID);
-    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return;
+    }
     
     var warsheet = clanFamilyPrefs.warsheet;
     var sheetId = clanFamilyPrefs.sheetId;
@@ -924,6 +940,37 @@ function notify(auth) {
             });
         }
     });    
+}
+
+function roster(auth) {
+    const channelID = this.channelID;
+    const detail = this.detail;
+    const sheets = google.sheets({version: 'v4', auth});
+    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return;
+    }
+
+    const warsheet = clanFamilyPrefs.warsheet;
+    const baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
+    const basesAttackedColumn = clanFamilyPrefs.basesAttackedColumn;
+
+    sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges: [warsheet+'!A5:A'+MAX_ROWS, 
+                 warsheet+'!G5:H'+MAX_ROWS, 
+                 'CLAIMS!'+ baseStatusColumn + '2',
+                 'CLAIMS!'+basesAttackedColumn+'5:'+basesAttackedColumn+MAX_ROWS]
+    }, (err, res) => { 
+        const playerNames = res.data.valueRanges[0].values;
+        const warlog = res.data.valueRanges[1].values;
+        const opponentLog = res.data.valueRanges[2].values;
+        const warSize = res.data.valueRanges[3].values[0][0];
+        var attacksRemainingCount = 0;
+        var attacksRemaining = '';
+
+    });
 }
 
 /**
@@ -1254,8 +1301,10 @@ function unclaim(auth) {
 function claim(auth) {
     const channelID = this.channelID;
     const clanFamilyPrefs = getPreferencesFromChannel(channelID);
-    if (clanFamilyPrefs == null)
-        return unknownChannelMessage(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return ;
+    }
 
     const args = this.args;
     if (args.length < 2) {
@@ -1370,7 +1419,10 @@ function search2D(someArray, column, searchString) {
 function claims(auth) {
     const channelID = this.channelID;
     const clanFamilyPrefs = getPreferencesFromChannel(channelID);
-    if (clanFamilyPrefs == null) return unknownChannelMessage(channelID);
+    if (clanFamilyPrefs == null) {
+        unknownChannelMessage(channelID);
+        return ;
+    }
 
     const sheets = google.sheets({version: 'v4', auth});
     const warsheet = clanFamilyPrefs.warsheet;

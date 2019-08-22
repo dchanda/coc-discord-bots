@@ -1663,7 +1663,7 @@ function getPreferencesFromChannel(channelID) {
 function unknownChannelMessage(channelID) {
     bot.sendMessage({
         to: channelID,
-        message: "Please run this command from appropriate channel - " + getKnownChannelsMsg
+        message: "Please run this command from appropriate channel - " + getKnownChannelsMsg()
     });
 }
 

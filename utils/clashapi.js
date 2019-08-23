@@ -115,6 +115,31 @@ function getJoinDate(playerTag, clanTags, callback) {
     });
 }
 
+function getWarRoster(opponentClanTag, callback) {
+    var args = {
+        path: {'clanTag': encodeURIComponent(opponentClanTag)},
+        headers: CLASH_CONFIG.auth
+    };
+
+    var roster = [];
+    restClient.get(CLASH_CONFIG.urlPrefix + '/v1/clans/${clanTag}/currentwar', args, function(responseJson, response) {
+        if (response.statusCode != 200) {
+            logger.warn('Error fetching current war information!');
+            logger.debug('Response status Code: ' + response.statusCode);
+            logger.debug('Response : ' + responseJson);
+            callback({message: 'Clash API Error! - War Log not public for Clan - ' + clanTag,
+                code: response.statusCode}, 
+                null);
+            return;
+        }
+        var opponentMembers = responseJson.clan.members;
+        var opponentMembersMapPosition = {};
+        opponentMembers = opponentMembers.sort(compareMembers);
+        callback(null, opponentMembers);
+    });
+
+}
+
 function getAttackSummary(clanTag, opponentClanTag, callback) {
     var args = {
         path: {'clanTag': encodeURIComponent(opponentClanTag)},

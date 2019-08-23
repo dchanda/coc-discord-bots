@@ -579,6 +579,13 @@ function addwar(auth) {
     });
 }
 
+
+function setupWarRoster(auth, channelID, clanInfo) {
+    clashapi.getWarRoster(clanInfo.tag, (err, members) => {
+
+    });
+}
+
 function getWarRoster(auth, channelID) {
     channelID = "529782827261100079"; //This is for testing only.
     var thisClanTag = getClanTagFromChannel(channelID);
@@ -879,7 +886,7 @@ function notify(auth) {
         ranges: [warsheet+'!A5:A'+MAX_ROWS, 
                  warsheet+'!D5:D'+MAX_ROWS, 
                  warsheet+'!E5:E'+MAX_ROWS, 
-                 arsheet+'!G5:H'+MAX_ROWS, 
+                 warsheet+'!G5:H'+MAX_ROWS, 
                  CLAIMS+'!'+EXCLUSION_COLUMN+'2:'+EXCLUSION_COLUMN+'52']
     }, (err, res) => { 
         if (err) {

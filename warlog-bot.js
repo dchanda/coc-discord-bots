@@ -22,6 +22,7 @@ const STAR_EMPTY = '☆';
 const STAR_FULL = '⭐'; 
 const THUMBSUP = '👍';
 const CLAIMS = BOT_CONFIGS.claimsTabName;
+const CLAIMS_SHEET_ID = BOT_CONFIGS.claimsSheetId;
 const CLAN_FAMILY = BOT_CONFIGS.clanFamily;
 const MAX_ROWS = 104;
 const EXCLUSION_COLUMN = 'E';
@@ -148,7 +149,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, addwar.bind({'channelID': channelID, 'args': args}));
                 break;
-            case 'setwarroster':
+            case 'g':
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, getWarRoster);
                 break;
@@ -506,7 +507,17 @@ function addwar(auth) {
                 });
                 return;
             }
-            var insertReq = {
+            var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
+            var basesAttackedColumn = clanFamilyPrefs.basesAttackedColumn;
+            var baseStatuses = [];
+            var basesAttacked = [];
+            for(var i=0; i<warSize; i++) {
+                baseStatuses.push({"values": [{"userEnteredValue": {"stringValue": ""}}]});
+            }
+            for(var i=0; i<MAX_ROWS; i++) {
+                basesAttacked.push({"values": [{"userEnteredValue": {"stringValue": ""}}]});
+            }
+            var addWarReq = {
                 spreadsheetId: SPREADSHEET_ID,
                 resource: {
                     requests: [{
@@ -565,12 +576,42 @@ function addwar(auth) {
                                 "endColumnIndex": 7
                             }
                         }
+                    },{
+                        "updateCells": {
+                            "rows": [{"values": [{"userEnteredValue": {"numberValue": warSize}}]}],
+                            "fields": "userEnteredValue/stringValue",
+                            "range": {
+                                "sheetId": CLAIMS_SHEET_ID,
+                                "startRowIndex": 1,
+                                "startColumnIndex": baseStatusColumn.charCodeAt(0)-"A".charCodeAt(0),
+                                "endRowIndex": warSize,
+                                "endColumnIndex": baseStatusColumn.charCodeAt(0)+1-"A".charCodeAt(0),
+                            }
+                        }
+                    },{
+                        "updateCells": {
+                            "rows": [],
+                            "fields": "userEnteredValue/stringValue",
+                            "range": {
+                                "sheetId": CLAIMS_SHEET_ID,
+                                "startRowIndex": 1,
+                                "startColumnIndex": basesAttackedColumn.charCodeAt(0)-"A".charCodeAt(0),
+                                "endRowIndex": MAX_ROWS,
+                                "endColumnIndex": basesAttackedColumn.charCodeAt(0)+1-"A".charCodeAt(0),
+                            }
+                        }
                     }],
                 }
             };
-            sheets.spreadsheets.batchUpdate(insertReq, (err, res)=> {
+            sheets.spreadsheets.batchUpdate(addWarReq, (err, res)=> {
+                if (err) console.log(err);
                 if (clanInfo.isWarLogPublic) {
                     logger.info("Update War Roster");
+                    bot.sendMessage({
+                        to: channelID,
+                        message: 'Ok. Setting up roster!'
+                    });                    
+                    setupWarRoster(auth, channelID, clanInfo.tag);
                 } else {
                     getWarRoster(auth, channelID);
                 }
@@ -580,8 +621,95 @@ function addwar(auth) {
 }
 
 
-function setupWarRoster(auth, channelID, clanInfo) {
-    clashapi.getWarRoster(clanInfo.tag, (err, members) => {
+function setupWarRoster(auth, channelID, clanTag) {
+    if (!channelID) channelID = this.channelID;
+    if (!clanTag) clanTag = this.clanTag;
+
+    const sheets = google.sheets({version: 'v4', auth});
+
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) return unknownChannelMessage();
+    var warsheet = clanFamilyPrefs.warsheet;
+    var warSheetId = clanFamilyPrefs.sheetId;
+
+    clashapi.getWarMembers(clanTag, (err, members) => {
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: [warsheet+'!A5:B'+MAX_ROWS]
+        }, (err, res) => { 
+            var playerData = res.data.values;
+            var rosterUpdate = [];
+            var mapPositions = [];
+            var attacks = [];
+            var rowCount = 0;
+            playerData.forEach( playerRow => {
+                if (playerRow.length > 0) {
+                    playerTag = playerRow[1];
+                    var mapPosition = "";
+                    for(var i=0; i<members.length; i++) {
+                        if (members[i].tag == playerTag) {
+                            mapPosition = members[i].mapPosition;
+                            break;
+                        }  
+                    }
+                    if (mapPosition == "") attacks.push(["-","-"]);
+                    else attacks.push(["XXX","XXX"]);
+                    mapPositions.push([mapPosition]);
+                    rowCount++;   
+                }
+            });
+            rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!C5:C'+(rowCount+5), values: mapPositions});
+            rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!G5:H'+(rowCount+5), values: attacks});
+
+            sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    data: rosterUpdate,
+                    valueInputOption: 'USER_ENTERED'
+                }
+            }, (err, result) => {
+                if (err) {
+                    logger.warn('The Google API returned an error: ' + err);
+                    bot.sendMessage({
+                        to: channelID,
+                        message: 'Unable to complete the operation. Please try again later!'
+                    });
+                    return;
+                }
+                sheets.spreadsheets.batchUpdate({
+                    spreadsheetId: SPREADSHEET_ID,
+                    resource: {
+                        requests: [{
+                            "sortRange": {
+                                "range": {
+                                    "sheetId": warSheetId,
+                                    "startColumnIndex": 0,
+                                    "startRowIndex": 4,
+                                    "endRowIndex": 4+rowCount
+                                },
+                                "sortSpecs": [{
+                                    "dimensionIndex": 2,
+                                    "sortOrder": "ASCENDING"
+                                }]
+                            }
+                        }]
+                    }
+                }, (err, res) => {
+                    if (err) {
+                        logger.error(err);
+                        bot.sendMessage({
+                            to: channelID,
+                            message: 'Unable to sort the sheet!'
+                        });
+                        return;
+                    }
+                    bot.sendMessage({
+                        to: channelID,
+                        message: 'Done!'
+                    });
+                });
+            });
+        }); 
 
     });
 }

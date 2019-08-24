@@ -12,6 +12,7 @@ exports.getClanInfo = getClanInfo;
 exports.getClanInfos = getClanInfos;
 exports.getPlayerInfo = getPlayerInfo;
 exports.getJoinDate = getJoinDate;
+exports.getWarMembers = getWarMembers;
 
 function getClanInfo(clanTag, callback) {
     var args = {
@@ -115,7 +116,7 @@ function getJoinDate(playerTag, clanTags, callback) {
     });
 }
 
-function getWarRoster(opponentClanTag, callback) {
+function getWarMembers(opponentClanTag, callback) {
     var args = {
         path: {'clanTag': encodeURIComponent(opponentClanTag)},
         headers: CLASH_CONFIG.auth
@@ -132,7 +133,7 @@ function getWarRoster(opponentClanTag, callback) {
                 null);
             return;
         }
-        var opponentMembers = responseJson.clan.members;
+        var opponentMembers = responseJson.opponent.members;
         var opponentMembersMapPosition = {};
         opponentMembers = opponentMembers.sort(compareMembers);
         callback(null, opponentMembers);

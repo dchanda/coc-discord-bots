@@ -871,7 +871,8 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
             player.name = playerInfo.name;
             player.townhallLevel = playerInfo.townHallLevel;
             player.joinDate = joinDate;
-            player.clan = playerInfo.clan.tag;
+            if (playerInfo.clan)
+                player.clan = playerInfo.clan.tag;
 
             playerInfo.achievements.forEach( achievement => {
                 switch(achievement.name) {
@@ -1040,6 +1041,10 @@ function _loadResearchData(html) {
                 continue;
             }
             if ($(headers[j]).text().indexOf('Upgrade Cost') > -1 && researchCostCol == -1) {
+                researchCostCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Upgrading Cost') > -1 && researchCostCol == -1) {
                 researchCostCol = j;
                 continue;
             }

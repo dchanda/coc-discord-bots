@@ -13,6 +13,8 @@ exports.getClanInfos = getClanInfos;
 exports.getPlayerInfo = getPlayerInfo;
 exports.getJoinDate = getJoinDate;
 exports.getWarMembers = getWarMembers;
+exports.getClanInfosNew = getClanInfosNew;
+
 
 function getClanInfo(clanTag, callback) {
     var args = {
@@ -29,7 +31,6 @@ function getClanInfo(clanTag, callback) {
                 null);
             return;
         }
-        var warEndTime = moment(responseJson);
         callback(null, responseJson);
     });
 }
@@ -38,13 +39,31 @@ function getClanInfos(clanTags, callback) {
     var clanInfoHolder = {};
 
     clanTags.forEach(clanTag => {
-        _getClanInfoInternal(clanTag, function(err, clanInfo) {
+        getClanInfo(clanTag, function(err, clanInfo) {
             clanInfoHolder[clanTag] = clanInfo;
             if (Object.keys(clanInfoHolder).length == clanTags.length) {
                 callback(null, clanInfoHolder)
             }
         });
     });
+}
+
+function getClanInfosNew(clanTags, finalCallback) {
+    var clanInfoHolder = {};
+    var clanTagsCopy = clanTags.slice(0);
+    __getClanInfosInternal(clanTagsCopy, finalCallback, clanInfoHolder);
+}
+
+function __getClanInfosInternal(clanTags, finalCallback, clanInfoHolder) {
+    if (clanTags.length == 0) {
+        finalCallback(null, clanInfoHolder);
+    } else {
+        var clanTag = clanTags.pop();
+        getClanInfo(clanTag, (err, clanInfo) => {
+            clanInfoHolder[clanTag] = clanInfo;
+            __getClanInfosInternal(clanTags, finalCallback, clanInfoHolder);
+        });
+    }
 }
 
 function _getClanInfoInternal(clanTag, callback) {
@@ -62,7 +81,6 @@ function _getClanInfoInternal(clanTag, callback) {
                 null);
             return;
         }
-        var warEndTime = moment(responseJson);
         callback(null, responseJson);
     });
 }

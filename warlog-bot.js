@@ -246,15 +246,21 @@ function fetchAndUpdateWarLog(auth) {
     }
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: clanFamilyPrefs.warsheet+'!G2',
+        range: clanFamilyPrefs.warsheet+'!G2:G3',
     }, (err, res) => { 
         if(err) {
             logger.warn('Unable to fetch opponent clan Tag.');
             return;
         }
         if (!res.data.values) return;
-        clanFamilyPrefs["opponentClanTag"] = res.data.values[0][0];
-        clashapi.getAttackSummary('', clanFamilyPrefs["opponentClanTag"], _updateWarLog.bind({auth: auth, clanTag: clanTag}));
+        if (res.data.values[1][0] != 'X') {
+            clanFamilyPrefs["opponentClanTag"] = 'X';
+            logger.info('No new war. Rescheduling update interval for "' + clanTag + '"');
+            scheduleWarLogUpdater(360000, clanTag);
+        } else {
+            clanFamilyPrefs["opponentClanTag"] = res.data.values[0][0];
+            clashapi.getAttackSummary('', clanFamilyPrefs["opponentClanTag"], _updateWarLog.bind({auth: auth, clanTag: clanTag}));
+        }
     });
 }
 
@@ -267,11 +273,11 @@ function _updateWarLog(err, attackSummary) {
     if (err) {
         if (err.code == 100) {
             var duration = err.startTime.diff(moment(), 'milliseconds');
-            logger.info('War starts in - ' + duration + 'ms. Rescheduling the update interval.');
+            logger.info('War starts in - ' + duration + 'ms. Rescheduling the update interval. "' + clanTag + '"');
             scheduleWarLogUpdater(duration, clanTag);
             return;
         } else if (err.code == 403) {
-            logger.info('War log is not public. Changing the update interval to 1hr.');
+            logger.info('War log is not public. Changing the update interval to 1hr. "' + clanTag + '"');
             scheduleWarLogUpdater(3600000, clanTag);
             return;
         } else {
@@ -376,7 +382,7 @@ function _updateWarLog(err, attackSummary) {
             }
             sleepDuration += 5;
         });
-        logger.info('Updating war log...');
+        logger.info('Updating war log for "' + clanTag + '"');
     });
 }
 

@@ -797,7 +797,7 @@ function checkNewMembers() {
                         }
                     } else {
                         newMembers++;
-                        message += liveMember.name + ' joined us in **'+CLAN_NAMES[liveMember.clan]+'!\n';
+                        message += liveMember.name + ' joined us in **'+CLAN_NAMES[liveMember.clan]+'** !\n';
                         saveMemberQueue.push(memberTag);
                     }
                 }
@@ -985,7 +985,10 @@ function getCurrentData(callback) {
         var liveData = {};
         for(var clanTag in clanInfos) {
             var clanInfo = clanInfos[clanTag];
-            var members = clanInfo.memberList;
+            if (clanInfo == null) {
+                logger.warn('Missing clan member details for clan "' + clanTag + '"');
+                continue;
+            }            var members = clanInfo.memberList;
             members.forEach(member => {
                 playerAttribMap = {
                     "donationsReceived": member.donationsReceived,

@@ -457,7 +457,19 @@ function help(channelID) {
                 value: 'Closes the current war in progress with the final score.'
             }, {
                 name: '!addwar <opponent clanTag> <roster size>',
-                value: 'Adds a new War column with the given opponent clan tag.'
+                value: 'Adds a new War column with the given opponent clan tag. If warlog is not public, this command needs to be followed with !in / !out / !confirm'
+            }, {
+                name: '!in <roster num> <roster num> ... ...',
+                value: 'Includes the members in the war roster. An active war roster build shoudl be in progress for this to work.'
+            }, {
+                name: '!in <player name> <roster num>',
+                value: 'Includes the given player in the war roster at the specified number.'
+            }, {
+                name: '!out <roster num> <roster num> ... ...',
+                value: 'Removes the members from the war roster. An active war roster build shoudl be in progress for this to work.'
+            }, {
+                name: '!confirmroster',
+                value: 'Locks down the war roster for this war.'
             }]
           }
     })

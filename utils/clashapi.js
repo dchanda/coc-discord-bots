@@ -12,7 +12,7 @@ exports.getClanInfo = getClanInfo;
 exports.getClanInfos = getClanInfos;
 exports.getPlayerInfo = getPlayerInfo;
 exports.getJoinDate = getJoinDate;
-exports.getWarMembers = getWarMembers;
+exports.getCurrentWar = getCurrentWar;
 exports.getClanInfosNew = getClanInfosNew;
 
 
@@ -134,9 +134,9 @@ function getJoinDate(playerTag, clanTags, callback) {
     });
 }
 
-function getWarMembers(opponentClanTag, callback) {
+function getCurrentWar(clanTag, callback) {
     var args = {
-        path: {'clanTag': encodeURIComponent(opponentClanTag)},
+        path: {'clanTag': encodeURIComponent(clanTag)},
         headers: CLASH_CONFIG.auth
     };
 
@@ -154,7 +154,8 @@ function getWarMembers(opponentClanTag, callback) {
         var opponentMembers = responseJson.opponent.members;
         var opponentMembersMapPosition = {};
         opponentMembers = opponentMembers.sort(compareMembers);
-        callback(null, opponentMembers);
+        responseJson.opponent["members"] = opponentMembers;
+        callback(null, responseJson);
     });
 
 }

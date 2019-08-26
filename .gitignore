@@ -6,6 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 nohup.out
 
+t.js
+
 # Runtime data
 pids
 *.pid

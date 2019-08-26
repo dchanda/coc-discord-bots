@@ -33,6 +33,10 @@ const CHANNELS = {};
 const MAINTENANCE = false;
 
 // ------------ GLOBAL RESUABLES  ---------------
+
+const botOperationQueue = new Queue();
+const interestedMessageIds = {};
+
 var warLogUpdater;
 var warLogUpdateInterval;
 var opponentClanTagUpdater;
@@ -152,6 +156,14 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'g':
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, getWarRoster);
+                break;
+            case 'in':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, rosterIn.bind({'channelID': channelID, 'args': args, 'inc': true, messageID: evt.d.id}));
+                break;
+            case 'out':
+                if (isPrivileged(userID, channelID, cmd))
+                    authorize(googleCredentials, rosterIn.bind({'channelID': channelID, 'args': args, 'inc': false, messageID: evt.d.id}));
                 break;
             case 'confirmroster':
                 if (isPrivileged(userID, channelID, cmd))
@@ -274,7 +286,9 @@ function _updateWarLog(err, attackSummary) {
         if (err.code == 100) {
             var duration = err.startTime.diff(moment(), 'milliseconds');
             logger.info('War starts in - ' + duration + 'ms. Rescheduling the update interval. "' + clanTag + '"');
-            scheduleWarLogUpdater(duration, clanTag);
+            if (duration > 0) {
+                scheduleWarLogUpdater(duration, clanTag);
+            }
             return;
         } else if (err.code == 403) {
             logger.info('War log is not public. Changing the update interval to 1hr. "' + clanTag + '"');
@@ -612,14 +626,18 @@ function addwar(auth) {
             sheets.spreadsheets.batchUpdate(addWarReq, (err, res)=> {
                 if (err) console.log(err);
                 if (clanInfo.isWarLogPublic) {
-                    logger.info("Update War Roster");
+                    logger.info("Updating War Roster");
                     bot.sendMessage({
                         to: channelID,
-                        message: 'Ok. Setting up roster!'
+                        message: 'Ok. War Log is public. Setting up roster. I got this!'
                     });                    
                     setupWarRoster(auth, channelID, clanInfo.tag);
                 } else {
-                    getWarRoster(auth, channelID);
+                    bot.sendMessage({
+                        to: channelID,
+                        message: 'War Log is not public. So lets setup the roster!'
+                    });                    
+                    getWarRoster(auth, channelID, warSize);
                 }
             });
         });
@@ -638,11 +656,12 @@ function setupWarRoster(auth, channelID, clanTag) {
     var warsheet = clanFamilyPrefs.warsheet;
     var warSheetId = clanFamilyPrefs.sheetId;
 
-    clashapi.getWarMembers(clanTag, (err, members) => {
+    clashapi.getCurrentWar(clanTag, (err, currentWar) => {
         sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: [warsheet+'!A5:B'+MAX_ROWS]
-        }, (err, res) => { 
+        }, (err, res) => {
+            var members = currentWar.opponent.members;
             var playerData = res.data.values;
             var rosterUpdate = [];
             var mapPositions = [];
@@ -709,9 +728,12 @@ function setupWarRoster(auth, channelID, clanTag) {
                         });
                         return;
                     }
+                    var warStartTime = moment(currentWar.startTime);
+                    var duration = moment.duration(warStartTime.diff(moment()));
+                    var startsIn = duration.hours() + "hrs " + duration.minutes() + "mins ";
                     bot.sendMessage({
                         to: channelID,
-                        message: 'Done!'
+                        message: 'Done! War starts in '+startsIn+'. Good luck!'
                     });
                 });
             });
@@ -720,8 +742,9 @@ function setupWarRoster(auth, channelID, clanTag) {
     });
 }
 
-function getWarRoster(auth, channelID) {
-    channelID = "529782827261100079"; //This is for testing only.
+function getWarRoster(auth, channelID, rosterSize) {
+    if (!rosterSize) rosterSize = 40;
+    channelID = "573258310455918614"; //This is for testing only.
     var thisClanTag = getClanTagFromChannel(channelID);
     where = {clan: thisClanTag};
     models.PlayerData.findAll({ 
@@ -730,65 +753,121 @@ function getWarRoster(auth, channelID) {
             ['townhallLevel', 'DESC']
         ]
     }).then(clanMembers => {
-        console.log("Found " + clanMembers.length + " Members in clan.");
+        logger.info("Found " + clanMembers.length + " Members in clan.");
         var message = "";
-        var idx = 0;
+        var idx = 1;
+        var count = 0;
+        var rosterMembers = [];
         clanMembers.forEach(member => {
-            message = "`" + member.name + " (TH" + member.townhallLevel + ")`";
-            var queueObj = {
-                operation: 'sendMessage',
-                input: {to: channelID, message: message},
-                callback: warRosterCallback.bind({tag: member.tag})
-            }
-            botOperationQueue.enqueue(queueObj);
+            rosterMembers.push({name: member.name, 
+                                townhallLevel: member.townhallLevel, 
+                                inc: (idx <= rosterSize), 
+                                tag: member.tag});
+            idx++;
+        });
+        bot.sendMessage({
+            to: channelID,
+            message: constructRosterMessage(rosterMembers, rosterSize)
+        }, (err, response) => {
+            startWarRosterThread(auth, response.id, channelID, rosterMembers, rosterSize);
         });
     });
 }
 
-const botOperationQueue = new Queue();
-const rosterMessageIds = {};
+const rosterNegotiations = {};
 
-function warRosterCallback(err, obj) {
-    if (err) {
-        console.log(this.tag + ":Error - " + err.response);
+function startWarRosterThread(auth, messageID, channelID, rosterMembers, rosterSize) {
+    if (Object.keys(rosterNegotiations).includes(channelID)) {
+
     } else {
-        console.log(this.tag + ": " + obj.id);
-        rosterMessageIds[this.tag] = obj.id;
-        var queueObj = {
-            operation: 'addReaction',
-            input: {channelID: obj.channel_id, messageID: obj.id, reaction: "✅"},
-        }
-        botOperationQueue.enqueue(queueObj);
-
-        queueObj = {
-            operation: 'addReaction',
-            input: {channelID: obj.channel_id, messageID: obj.id, reaction: "❎"},
-        }
-        botOperationQueue.enqueue(queueObj);
-    }
-}
-
-setInterval(invokeBotOperation, 1000);
-
-function invokeBotOperation() {
-    var queueObj = botOperationQueue.dequeue();
-    if (queueObj) {
-        switch(queueObj.operation) {
-            case 'sendMessage':
-                bot.sendMessage(queueObj.input, queueObj.callback);
-                break;
-            case 'addReaction':
-                bot.addReaction(queueObj.input);
-                break; 
-        }
+        rosterNegotiations[channelID] = {
+            inProgress : true, 
+            messageID: messageID, 
+            members: rosterMembers,
+            rosterSize: rosterSize,
+        };
     }
 }
 
 function confirmRoster(auth) {
-    for(tag in rosterMessageIds) {
-        var messageId = rosterMessageIds[tag];
-        bot.getReaction()
+    this.channelID = channelID;
+    var negotiation = rosterNegotiations[channelID];
+    if (negotiation == null) {
+        bot.sendMessage({
+            to: channelID,
+            message: "No roster to confirm."
+        });
+        return;
     }
+    rosterNegotiations[channelID] = null;
+    bot.sendMessage({
+        to: channelID,
+        message: "Done."
+    });
+}
+
+function rosterIn(auth) {
+    var channelID = this.channelID;
+    var messageID = this.messageID;
+    var args = this.args;
+    var inc = this.inc;
+    var negotiation = rosterNegotiations[channelID];
+    var inIndices = [];
+    args.forEach( idxStr => {
+        var parsed = parseInt(idxStr);
+        if (!isNaN(parsed))
+            inIndices.push(parsed);
+    });
+
+    if (negotiation == null) {
+        bot.sendMessage({
+            to: channelID,
+            message: "No roster to confirm."
+        });
+        return;
+    }
+    inIndices.forEach( index => {
+        if (index > 0 && index <= negotiation.members.length+1)
+            negotiation.members[index-1].inc = inc;
+    });
+    bot.editMessage({
+        channelID: channelID,
+        messageID: negotiation.messageID,
+        message: constructRosterMessage(negotiation.members, negotiation.rosterSize)
+    }, (err, response) => {
+        bot.deleteMessage({
+            channelID: channelID,
+            messageID: messageID
+        });
+    });
+}
+
+function constructRosterMessage(rosterMembers, rosterSize) {
+    var message = [];
+    var idx = 1;
+    var count = 0;
+    var loopEnd = Math.ceil(rosterMembers.length/2);
+
+    for(var i=0; i<rosterMembers.length; i++) {
+        var memberStr= "";
+        var member = rosterMembers[i];
+        idx = i+1;
+        memberStr += (idx) + ". " + ((idx < 10) ? " " : "");
+        memberStr += (member.inc) ? "✅ " : "❌ ";  // ❌ ❎  
+        var memberDisplayStr = member.name + " (TH" + member.townhallLevel + ")";
+        while (memberDisplayStr.length <= 23)
+            memberDisplayStr+= " ";
+        memberStr += memberDisplayStr;
+        if (i%2 == 0) message.push( memberStr );
+        else {
+            message[Math.floor(i/2)] =  message[Math.floor(i/2)] + memberStr; 
+        }
+        if (member.inc) count++;
+    }
+    var format = (count==rosterSize) ? 'CSS' : 'diff';
+    var finallMessage = "```" + format + "\n- Opted in: " + count + "````" + message.join("`\n`") + "`\n```" + format + "\n- Opted in: " + count + "```";
+    logger.debug(finallMessage);
+    return finallMessage;
 }
 
 function endwar(auth) {

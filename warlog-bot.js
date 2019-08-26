@@ -155,7 +155,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'g':
                 if (isPrivileged(userID, channelID, cmd))
-                    authorize(googleCredentials, getWarRoster);
+                    authorize(googleCredentials, getWarRoster.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'in':
                 if (isPrivileged(userID, channelID, cmd))
@@ -755,8 +755,10 @@ function setupWarRoster(auth, channelID, clanTag) {
 }
 
 function getWarRoster(auth, channelID, rosterSize) {
-    if (!rosterSize) rosterSize = 40;
-    channelID = "573258310455918614"; //This is for testing only.
+    if (!rosterSize && !this.args) rosterSize = 40;
+    if (this.args.length > 0) rosterSize = parseInt(args[0]);
+    if (this.channelID) channelID = this.channelID;
+    // channelID = "573258310455918614"; //This is for testing only.
     var thisClanTag = getClanTagFromChannel(channelID);
     where = {clan: thisClanTag};
     models.PlayerData.findAll({ 

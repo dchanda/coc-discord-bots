@@ -756,7 +756,7 @@ function setupWarRoster(auth, channelID, clanTag) {
 
 function getWarRoster(auth, channelID, rosterSize) {
     if (!rosterSize && !this.args) rosterSize = 40;
-    if (this.args.length > 0) rosterSize = parseInt(args[0]);
+    if (this.args && this.args.length > 0) rosterSize = parseInt(this.args[0]);
     if (this.channelID) channelID = this.channelID;
     // channelID = "573258310455918614"; //This is for testing only.
     var thisClanTag = getClanTagFromChannel(channelID);

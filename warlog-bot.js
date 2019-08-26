@@ -1810,6 +1810,10 @@ function checkClaimsForClan(auth, clanFamilyPrefs, reschedule) {
 
 function isPrivileged(userID, channelID, cmd) {
     var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (!clanFamilyPrefs) {
+        unknownChannelMessage(channelID);
+        return false;
+    }
     var privilegedMembers = clanFamilyPrefs.privilegedMembers;
     return privilegedMembers.includes(userID);
 }

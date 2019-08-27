@@ -1358,6 +1358,13 @@ function attack(auth) {
         else  
             playerIdx = search2D(playerNames, 0, attacker);
         
+        if (playerIdx == -1) {
+            bot.sendMessage({
+                to: channelID,
+                message: 'Yo couldn\'t locate player - \'' + attacker + '\'. Please try again!'
+            });
+            return;
+        }
         basesAttackedByPlayer = [];
         if (basesAttacked && basesAttacked[playerIdx] && basesAttacked[playerIdx][0])
             basesAttackedByPlayer = basesAttacked[playerIdx][0].split(',');
@@ -1367,6 +1374,13 @@ function attack(auth) {
             bot.sendMessage({
                 to: channelID,
                 message: 'I knew that already!'
+            });
+            return;
+        }
+        if (basesAttackedByPlayer.length >= 2) {
+            bot.sendMessage({
+                to: channelID,
+                message: 'Both attacks recorded already! This seems to be third attack ???'
             });
             return;
         }

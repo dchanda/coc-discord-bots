@@ -29,6 +29,7 @@ const EXCLUSION_COLUMN = 'E';
 const WIN_COLOR = {"red": 0.41568628, "green": 0.65882355, "blue": 0.30980393};
 const LOSS_COLOR = {"red": 0.8};
 const CHANNELS = {};
+const MASTER_ROSTER_SHEET = "ROSTER";
 
 const MAINTENANCE = false;
 
@@ -159,11 +160,11 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'in':
                 if (isPrivileged(userID, channelID, cmd))
-                    authorize(googleCredentials, rosterIn.bind({'channelID': channelID, 'args': args, 'inc': true, messageID: evt.d.id}));
+                    authorize(googleCredentials, updateRoster.bind({'channelID': channelID, 'args': args, 'inc': true, messageID: evt.d.id}));
                 break;
             case 'out':
                 if (isPrivileged(userID, channelID, cmd))
-                    authorize(googleCredentials, rosterIn.bind({'channelID': channelID, 'args': args, 'inc': false, messageID: evt.d.id}));
+                    authorize(googleCredentials, updateRoster.bind({'channelID': channelID, 'args': args, 'inc': false, messageID: evt.d.id}));
                 break;
             case 'confirmroster':
                 if (isPrivileged(userID, channelID, cmd))
@@ -492,6 +493,7 @@ function addwar(auth) {
 
     var warsheet = clanFamilyPrefs.warsheet;
     var sheetId = clanFamilyPrefs.sheetId;
+    bot.simulateTyping( channelID );
 
     sheets.spreadsheets.get({
         spreadsheetId: SPREADSHEET_ID,
@@ -643,21 +645,20 @@ function addwar(auth) {
                         to: channelID,
                         message: 'Ok. War Log is public. Setting up roster. I got this!'
                     });                    
-                    setupWarRoster(auth, channelID, clanInfo.tag);
+                    setupWarRosterForPublicWarlog(auth, channelID, clanInfo.tag);
                 } else {
                     bot.sendMessage({
                         to: channelID,
                         message: 'War Log is not public. So lets setup the roster!'
                     });                    
-                    getWarRoster(auth, channelID, warSize);
+                    setupWarRosterForPrivateWarlog(auth, channelID, warSize);
                 }
             });
         });
     });
 }
 
-
-function setupWarRoster(auth, channelID, clanTag) {
+function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
     if (!channelID) channelID = this.channelID;
     if (!clanTag) clanTag = this.clanTag;
 
@@ -754,13 +755,17 @@ function setupWarRoster(auth, channelID, clanTag) {
     });
 }
 
-function getWarRoster(auth, channelID, rosterSize) {
+function setupWarRosterForPrivateWarlog(auth, channelID, rosterSize) {
     if (!rosterSize && !this.args) rosterSize = 40;
     if (this.args && this.args.length > 0) rosterSize = parseInt(this.args[0]);
     if (this.channelID) channelID = this.channelID;
-    // channelID = "573258310455918614"; //This is for testing only.
+
     var thisClanTag = getClanTagFromChannel(channelID);
-    where = {clan: thisClanTag};
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+
+    const sheets = google.sheets({version: 'v4', auth});
+
+    where = {clan: thisClanTag, inClan: true};
     models.PlayerData.findAll({ 
         where: where,
         order: [
@@ -768,22 +773,42 @@ function getWarRoster(auth, channelID, rosterSize) {
         ]
     }).then(clanMembers => {
         logger.info("Found " + clanMembers.length + " Members in clan.");
-        var message = "";
-        var idx = 1;
-        var count = 0;
-        var rosterMembers = [];
-        clanMembers.forEach(member => {
-            rosterMembers.push({name: member.name, 
-                                townhallLevel: member.townhallLevel, 
-                                inc: (idx <= rosterSize), 
-                                tag: member.tag});
-            idx++;
-        });
-        bot.sendMessage({
-            to: channelID,
-            message: constructRosterMessage(rosterMembers, rosterSize)
-        }, (err, response) => {
-            startWarRosterThread(auth, response.id, channelID, rosterMembers, rosterSize);
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: clanFamilyPrefs.warsheet +'!B5:C' + MAX_ROWS,
+        }, (err, res) => {
+            if (err) {
+                logger.warn('The Google API returned an error: ' + err);
+                bot.sendMessage({
+                    to: channelID,
+                    message: 'Unable to fetch information. Try again later!'
+                });
+                return;
+            }
+            var previousWarData = res.data.values;
+            var message = "";
+            var idx = 1;
+            var count = 0;
+            var rosterMembers = [];
+
+            clanMembers.forEach(member => {
+                var idx = search2D(previousWarData, 0, member.tag);
+                var inWar = false;
+                //Checking if the player was in Previous War.. if so we include him
+                if (idx > -1 && previousWarData[idx].length > 1 && previousWarData[idx][1]!="")
+                    inWar = true;
+                rosterMembers.push({name: member.name, 
+                                    townhallLevel: member.townhallLevel, 
+                                    inc: inWar, 
+                                    tag: member.tag});
+                idx++;
+            });
+            bot.sendMessage({
+                to: channelID,
+                message: constructRosterMessage(rosterMembers, rosterSize)
+            }, (err, response) => {
+                startWarRosterThread(auth, response.id, channelID, rosterMembers, rosterSize);
+            });
         });
     });
 }
@@ -804,7 +829,7 @@ function startWarRosterThread(auth, messageID, channelID, rosterMembers, rosterS
 }
 
 function confirmRoster(auth) {
-    this.channelID = channelID;
+    var channelID = this.channelID;
     var negotiation = rosterNegotiations[channelID];
     if (negotiation == null) {
         bot.sendMessage({
@@ -813,33 +838,165 @@ function confirmRoster(auth) {
         });
         return;
     }
-    rosterNegotiations[channelID] = null;
-    bot.sendMessage({
-        to: channelID,
-        message: "Done."
+    bot.simulateTyping(channelID);
+    const sheets = google.sheets({version: 'v4', auth});
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    if (clanFamilyPrefs == null) unknownChannelMessage(channelID);
+
+    sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: clanFamilyPrefs.warsheet +'!B5:B' + MAX_ROWS,
+    }, (err, res) => {
+        if (err) {
+            logger.warn('The Google API returned an error: ' + err);
+            bot.sendMessage({
+                to: channelID,
+                message: 'Unable to complete the operation. Please try again later!'
+            });                
+            return;
+        }
+        var playerTags = res.data.values;
+        var newPlayerIdx = 0;
+        for(;newPlayerIdx<playerTags.length; newPlayerIdx++) {
+            if (playerTags && playerTags[newPlayerIdx] && playerTags[newPlayerIdx][0])
+                continue;
+            else
+                break;
+        }
+        var updateData = [];
+        var idx = 1;
+        var modifiedPlayerTags = [];
+        negotiation.members.forEach( member => {
+            var rosterIdx = search2D(playerTags, 0, member.tag);
+            modifiedPlayerTags.push(member.tag);
+            if (member.inc) {
+                if (rosterIdx == -1) {
+                    rosterIdx = newPlayerIdx;
+                    newPlayerIdx++;
+                    updateData.push({range: clanFamilyPrefs.warsheet+'!B'+(rosterIdx+5), values: [[member.tag]]});
+                }
+                updateData.push({range: clanFamilyPrefs.warsheet+'!C'+(rosterIdx+5), values: [[""+idx]]});
+                updateData.push({range: clanFamilyPrefs.warsheet+'!G'+(rosterIdx+5), values: [["XXX"]]});
+                updateData.push({range: clanFamilyPrefs.warsheet+'!H'+(rosterIdx+5), values: [["XXX"]]});
+                idx++;
+            } else if (rosterIdx > -1) {
+                updateData.push({range: clanFamilyPrefs.warsheet+'!C'+(rosterIdx+5), values: [[""]]});
+                updateData.push({range: clanFamilyPrefs.warsheet+'!G'+(rosterIdx+5), values: [["-"]]});
+                updateData.push({range: clanFamilyPrefs.warsheet+'!H'+(rosterIdx+5), values: [["-"]]});
+            }
+        });
+        for(var i=0; i<playerTags.length; i++) {
+            if (playerTags[i] && playerTags[i][0]) {
+                var playerTag = playerTags[i][0];
+                if (!modifiedPlayerTags.includes(playerTag)) {
+                    updateData.push({range: clanFamilyPrefs.warsheet+'!C'+(i+5), values: [[""]]});
+                    updateData.push({range: clanFamilyPrefs.warsheet+'!G'+(i+5), values: [["-"]]});
+                    updateData.push({range: clanFamilyPrefs.warsheet+'!H'+(i+5), values: [["-"]]});
+                }
+            }
+        }
+        sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                data: updateData,
+                valueInputOption: 'USER_ENTERED'
+            }
+        }, (err, result) => {
+            sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        "sortRange": {
+                            "range": {
+                                "sheetId": clanFamilyPrefs.sheetId,
+                                "startColumnIndex": 0,
+                                "startRowIndex": 4,
+                                "endRowIndex": 4+newPlayerIdx
+                            },
+                            "sortSpecs": [{
+                                "dimensionIndex": 2,
+                                "sortOrder": "ASCENDING"
+                            }]
+                        }
+                    }]
+                }
+            }, (err, res) => {
+                if (err) {
+                    logger.error(err);
+                    bot.sendMessage({
+                        to: channelID,
+                        message: 'Unable to sort the sheet!'
+                    });
+                    return;
+                }
+                rosterNegotiations[channelID] = null;
+                bot.sendMessage({
+                    to: channelID,
+                    message: 'Ok, Roster locked down. Good luck in War!'
+                });
+            });
+        });
     });
 }
 
-function rosterIn(auth) {
+function updateRoster(auth) {
     var channelID = this.channelID;
     var messageID = this.messageID;
     var args = this.args;
     var inc = this.inc;
     var negotiation = rosterNegotiations[channelID];
     var inIndices = [];
-    args.forEach( idxStr => {
-        var parsed = parseInt(idxStr);
-        if (!isNaN(parsed))
-            inIndices.push(parsed);
-    });
+    const sheets = google.sheets({version: 'v4', auth});
 
     if (negotiation == null) {
         bot.sendMessage({
             to: channelID,
-            message: "No roster to confirm."
+            message: "War roster locked down. Please check with an Officer."
         });
         return;
     }
+
+    if (args.length <= 2 && isNaN(parseInt(args[0]))) {
+        //This probably is a player instead of index.
+        var rosterIdx = 0;
+        if (args.length > 1) rosterIdx = parseInt(args[1]);
+        else {
+            bot.sendMessage({
+                to: channelID,
+                message: "To add a player: !in <playername> <index>"
+            })
+            return;
+        }
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: MASTER_ROSTER_SHEET +'!A2:E' + MAX_ROWS,
+        }, (err, res) => {
+            var playerData = res.data.values;
+            var idx = search2D(playerData, 1, idxStr);
+            if (idx != -1) {
+                negotiation.members.splice(rosterIdx, 0, {
+                    name: playerData[idx][1], 
+                    townhallLevel: playerData[idx][4], 
+                    inc: true, 
+                    tag: playerData[idx][0],
+                    new: true,
+                });
+            }
+            _updateRosterAsync(channelID, messageID, negotiation, inIndices, inc);
+        });
+    } else {
+        args.forEach( idxStr => {
+            var parsed = parseInt(idxStr);
+            if (!isNaN(parsed))
+                inIndices.push(parsed);
+        });
+        _updateRosterAsync(channelID, messageID, negotiation, inIndices, inc);
+    }
+
+}
+
+function _updateRosterAsync(channelID, messageID, negotiation, inIndices, inc) {
+    
     inIndices.forEach( index => {
         if (index > 0 && index <= negotiation.members.length+1)
             negotiation.members[index-1].inc = inc;
@@ -853,14 +1010,14 @@ function rosterIn(auth) {
             channelID: channelID,
             messageID: messageID
         });
-    });
+    });    
 }
 
 function constructRosterMessage(rosterMembers, rosterSize) {
     var message = [];
     var idx = 1;
     var count = 0;
-    var loopEnd = Math.ceil(rosterMembers.length/2);
+    var midpoint = Math.ceil(rosterMembers.length/2);
 
     for(var i=0; i<rosterMembers.length; i++) {
         var memberStr= "";
@@ -872,9 +1029,10 @@ function constructRosterMessage(rosterMembers, rosterSize) {
         while (memberDisplayStr.length <= 23)
             memberDisplayStr+= " ";
         memberStr += memberDisplayStr;
-        if (i%2 == 0) message.push( memberStr );
-        else {
-            message[Math.floor(i/2)] =  message[Math.floor(i/2)] + memberStr; 
+        if (idx > midpoint) {
+            message[idx - midpoint -1] += " " + memberStr 
+        } else {
+            message.push( memberStr );
         }
         if (member.inc) count++;
     }
@@ -1004,7 +1162,6 @@ function endwar(auth) {
 function link(auth) {
     const channelID = this.channelID;
     var args = this.args;
-    const clanFamilyPrefs = getPreferencesFromChannel(channelID);
 
     if (args.length < 2) {
         bot.sendMessage({
@@ -1013,13 +1170,7 @@ function link(auth) {
         });
         return;
     }
-    if (clanFamilyPrefs == null) {
-        bot.sendMessage({
-            to: channelID,
-            message: 'Please run this in appropriate channel - ' + getKnownChannelsMsg()
-        });
-        return;
-    }
+
     var playerDiscordId = args.pop().split('@')[1].replace('>', '');
     if (playerDiscordId.startsWith('!'))
         playerDiscordId = playerDiscordId.replace('!', '');
@@ -1028,8 +1179,9 @@ function link(auth) {
 
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: clanFamilyPrefs.warsheet +'!A5:D' + MAX_ROWS,
+        range: MASTER_ROSTER_SHEET +'!A2:D' + MAX_ROWS,
     }, (err, res) => {
+        var newAddition = false;
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
             bot.sendMessage({
@@ -1041,13 +1193,14 @@ function link(auth) {
         var playersData = res.data.values;
         var idx = -1;
         if (playerName.startsWith('#')) {
-            idx = search2D(playersData, 1, playerName);
-        } else {
             idx = search2D(playersData, 0, playerName);
+        } else {
+            idx = search2D(playersData, 1, playerName);
         }
         if (idx == -1) {
             //Need to add this player as he is not in the spreadsheet yet.
             var i=0
+            newAddition = true;
             for(;i<playersData.length; i++) {
                 if (playersData && playersData[i] && playersData[i][0])
                     continue;
@@ -1074,10 +1227,10 @@ function link(auth) {
                 }]
         data = [];
         if (playerName.startsWith('#'))
-            data.push({range: clanFamilyPrefs.warsheet+'!B'+(idx+5), values: [[playerName]]});
+            data.push({range: MASTER_ROSTER_SHEET+'!A'+(idx+2), values: [[playerName]]});
         else 
-            data.push({range: clanFamilyPrefs.warsheet+'!A'+(idx+5), values: [[playerName]]});
-        data.push({range: clanFamilyPrefs.warsheet+'!D'+(idx+5), values: [[playerDiscordId]]});
+            data.push({range: MASTER_ROSTER_SHEET+'!B'+(idx+2), values: [[playerName]]});
+        data.push({range: MASTER_ROSTER_SHEET+'!D'+(idx+2), values: [[playerDiscordId]]});
 
         sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID,

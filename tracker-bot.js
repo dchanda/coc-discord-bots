@@ -1209,8 +1209,11 @@ function cwlcheck(auth) {
         data = res.data.values;
         data.forEach( row => {
             if (row[8] && row[8] == "X") return;
-            firstMessage(row[3], row[1], row[0], row[4]);
-            secondMessage(row[3], row[1], row[0], row[4]);
+            if (row[3] && row[3].length > 1) {
+                console.log("Sending Notification for - " + row[1]);
+                firstMessage(row[3], row[1], row[0], row[4]);
+                secondMessage(row[3], row[1], row[0], row[4]);
+            }
         });
     });
 }

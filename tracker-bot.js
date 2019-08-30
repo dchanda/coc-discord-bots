@@ -1210,7 +1210,7 @@ function cwlcheck(auth) {
         data.forEach( row => {
             if (row[8] && row[8] == "X") return;
             firstMessage(row[3], row[1], row[0], row[4]);
-            secondMessage(row[0], row[3], playerStr);
+            secondMessage(row[3], row[1], row[0], row[4]);
         });
     });
 }
@@ -1235,7 +1235,7 @@ setInterval(function() {
     }
 }, 1000);
 
-function firstMessage(discordUserId, name, playerTag, townhallLevel, sheets) {
+function firstMessage(discordUserId, name, playerTag, townhallLevel) {
     var playerStr = name+'-('+playerTag+')-TH'+townhallLevel;
     var cmdInput = {
         to: discordUserId,
@@ -1260,7 +1260,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel, sheets) {
     };
 
     botSendCommandQueue.enqueue({command: "sendMessage", input: cmdInput, 
-        callback: handleFirstQuestionCallback.bind({playerTag: playerTag, discordUserId: discordUserId, playerStr: playerStr})
+        callback: handleFirstQuestionCallback.bind({playerTag: playerTag, discordUserId: discordUserId})
     });
 }
 
@@ -1270,7 +1270,6 @@ Q1_REACTIONS = ["✅", "❎"];
 function handleFirstQuestionCallback(err, res) {
     const playerTag = this.playerTag;
     const discordUserId = this.discordUserId;
-    const playerStr = this.playerStr;
     const messageID = res.id;
     const channelID = res.channel_id;
     watchedMessageIds.add(messageID);
@@ -1292,12 +1291,12 @@ function handleFirstQuestionCallback(err, res) {
                 };
                 botReactionCommandQueue.enqueue({command: "addReaction", input: reactionInput});
             });
-            //secondMessage(playerTag, discordUserId, playerStr);
         });
     });
 }
 
-function secondMessage(playerTag, discordUserId, playerStr) {
+function secondMessage(discordUserId, name, playerTag, townhallLevel) {
+    var playerStr = name+'-('+playerTag+')-TH'+townhallLevel;
     var cmdInput = {
         to: discordUserId,
         embed: {

@@ -173,4 +173,25 @@ SpellMaximums.init({
   updatedAt: false,  
 });
 
-module.exports = { PlayerData, Troops, Spells, TroopMaximums, SpellMaximums, sequelize }
+class CwlRsvp extends Sequelize.Model {}
+CwlRsvp.init({
+  // attributes
+  playertag: {
+    type: Sequelize.STRING,
+    allowNull: false,
+    primaryKey: true
+  },
+  channelid: {type: Sequelize.STRING, allowNull: true},
+  firstquestion: {type: Sequelize.STRING, allowNull: true},
+  secondquestion: {type: Sequelize.STRING, allowNull: true},
+  firstquestionanswer: {type: Sequelize.STRING, allowNull: true},
+  secondquestionanswer: {type: Sequelize.STRING, allowNull: true},
+}, {
+  sequelize,
+  modelName: 'cwl_rsvp',
+  tableName: 'cwl_rsvp',
+  createdAt: false,
+  updatedAt: false,  
+});
+
+module.exports = { PlayerData, Troops, Spells, TroopMaximums, SpellMaximums, CwlRsvp, sequelize }

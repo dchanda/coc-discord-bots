@@ -1,4 +1,5 @@
 const logger = require('./utils/logger.js');
+const fs = require('fs');
 const models = require('./model/clashmodels.js');
 const clashapi = require('./utils/clashapi.js')
 const Discord = require('discord.io');
@@ -7,21 +8,27 @@ const scheduler = require('node-schedule');
 const moment = require('moment-timezone');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const {google} = require('googleapis');
+const readline = require('readline');
 
 const discordAuth = require(process.env.CONFIGS_DIR + '/discord-auth.json');
+const googleCredentials = require(process.env.CONFIGS_DIR + '/googleapi-credentials.json');
 const BOT_CONFIGS = require(process.env.CONFIGS_DIR + '/tracker-bot-configs.json');
 const RESEARCH_DATA_BASEURL = 'https://clashofclans.fandom.com/wiki/';
+const SPREADSHEET_ID = BOT_CONFIGS.spreadsheetId;
+const SCOPES = ['https://www.googleapis.com/auth/spreadsheets', ];
 
 const CLAN_BIRTHDAY = moment('28 Dec 2018','DD MMM YYYY');
 
 const RESEARCH_DATA = {};
-//const CLAN_TAG = BOT_CONFIGS.thisClanTag;
+const TOKEN_PATH = process.env.CONFIGS_DIR + '/trackerbot-googletoken.json';
 const CLAN_TAGS = BOT_CONFIGS.clanFamilyTags;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
 const MAX_TROOPS = {};
 const MAX_SPELLS = {};
 const MAX_AWAY_DAYS = 15;
+const PRIVILEGED_MEMBERS = new Set();
 
 const MAINTENANCE = BOT_CONFIGS.maintenance;
 
@@ -123,14 +130,35 @@ bot.on('ready', function (evt) {
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
 
+    cacheUserRoles(server);
     cacheMaxLevels();
     cacheResearchData();
+    loadWatchedMessageIds();
     setInterval(function() {
         checkNewMembers();
     }, 60000);
-    // setTimeout(announceUpgrades, 2000);
+    setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
+});
+
+bot.on('any', function(event) {
+    if ("t" in event && (event.t == "MESSAGE_REACTION_ADD" || event.t=="MESSAGE_REACTION_REMOVE")) {
+        var messageID = event.d.message_id;
+        var channelID = event.d.channel_id;
+        var userID = event.d.user_id;
+        var emoji = event.d.emoji.name;
+        if (userID == BOT_CONFIGS.botUserId) return;
+        if (watchedMessageIds.has(messageID)) {
+            if (ALL_VALID_REACTIONS.has(emoji)) {
+                if (event.t == "MESSAGE_REACTION_ADD") {
+                    handleReaction(channelID, messageID, emoji, true);
+                } else if (event.t == "MESSAGE_REACTION_REMOVE") {
+                    handleReaction(channelID, messageID, emoji, false);
+                }
+            }
+        }
+    }
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -172,6 +200,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     memberDate(channelID, args);
                 break;
+            case 'cwlcheck':
+                if (PRIVILEGED_MEMBERS.has(userID))
+                    authorize(googleCredentials, cwlcheck);
+                break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     memberDate(channelID, args);
@@ -205,6 +237,25 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 
 function getServer() {
     return bot.servers[ALMOST_DIVORCED_SERVER_ID];
+}
+
+function cacheUserRoles(server) {
+    var roles = server.roles;
+
+    console.log("Roles->");
+    for(var roleid in roles) {
+        var role = roles[roleid];
+        console.log(role.id + " - " + role.name);
+    }
+
+    var members = server.members;
+    for(var memberid in members) {
+        var member = members[memberid];
+        BOT_CONFIGS.privilegedRoleIds.forEach(roleId => {
+            if (roleId && member.roles.includes(roleId))
+                PRIVILEGED_MEMBERS.add(member.id);
+        });
+    }
 }
 
 function cacheMaxLevels() {
@@ -268,6 +319,17 @@ function checkClanJoinDates() {
                 });
             });
             sleepDuration += 100;
+        });
+    });
+}
+
+function loadWatchedMessageIds() {
+    models.CwlRsvp.findAll().then(cwlRsvps => {
+        cwlRsvps.forEach(cwlRsvp => {
+            if (cwlRsvp.firstquestion)
+                watchedMessageIds.add(cwlRsvp.firstquestion);
+            if (cwlRsvp.secondquestion)
+                watchedMessageIds.add(cwlRsvp.secondquestion);
         });
     });
 }
@@ -1089,6 +1151,248 @@ function _loadResearchData(html) {
     }
 }  
 
+function handleReaction(channelID, messageID, emoji, add) {
+    models.CwlRsvp.findOne({
+        where: models.sequelize.or( {firstquestion: messageID}, {secondquestion: messageID})
+    }).then(cwlRsvp => {
+        if (!cwlRsvp) return;
+        if (messageID == cwlRsvp.firstquestion) {
+            if (emoji == "✅")
+                cwlRsvp.firstquestionanswer = add ? "Y" : null;
+            if (emoji == "❎")
+                cwlRsvp.firstquestionanswer = add ? "N" : null;
+            cwlRsvp.save({fields: ["firstquestionanswer"]});
+        } else if (messageID == cwlRsvp.secondquestion) {
+            var previousAnswer = cwlRsvp.secondquestionanswer==null ? "" : cwlRsvp.secondquestionanswer;
+            previousAnswerArr = previousAnswer.split(",");
+            var value = null;
+            switch(emoji) {
+                case "🇦": 
+                    value = "A"; break;
+                case "1⃣":
+                    value = "1"; break;
+                case "2⃣":
+                    value = "2"; break;
+                case "3⃣":
+                    value = "3"; break;
+                case "4⃣":
+                    value = "4"; break;
+                case "5⃣":
+                    value = "5"; break;
+                case "6⃣":
+                    value = "6"; break;
+                case "7⃣":
+                    value = "7"; break;
+            }
+            if (value) {
+                if (add) previousAnswerArr.push(value);
+                else previousAnswerArr = previousAnswerArr.filter( (val, idx, arr) => {return val != value});
+            }
+            cwlRsvp.secondquestionanswer = previousAnswerArr.join(',');
+            cwlRsvp.save({fields: ["secondquestionanswer"]});
+        }
+    });
+}
+
+function cwlcheck(auth) {
+    const sheets = google.sheets({version: 'v4', auth});
+
+    sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'ROSTER!A2:I150',
+    }, (err, res) => {
+        if(err) {
+            logger.error("Google API Error: " + err);
+            console.log(err);
+            return;
+        }
+        data = res.data.values;
+        data.forEach( row => {
+            if (row[8] && row[8] == "X") return;
+            firstMessage(row[3], row[1], row[0], row[4]);
+            secondMessage(row[0], row[3], playerStr);
+        });
+    });
+}
+
+const botSendCommandQueue = new Queue();
+const botReactionCommandQueue = new Queue();
+const watchedMessageIds = new Set();
+
+//Dequeue sendCommands - Once every 20secs.
+setInterval(function() {
+    command = botSendCommandQueue.dequeue();
+    if (command) {
+        bot.sendMessage(command.input, command.callback);
+    }
+}, 15000);
+
+
+setInterval(function() {
+    command = botReactionCommandQueue.dequeue();
+    if (command) {
+        bot.addReaction(command.input);
+    }
+}, 1000);
+
+function firstMessage(discordUserId, name, playerTag, townhallLevel, sheets) {
+    var playerStr = name+'-('+playerTag+')-TH'+townhallLevel;
+    var cmdInput = {
+        to: discordUserId,
+        embed: {
+            color: 13683174,
+            description: 'CWL for September is starting on the 1st of September.',
+            footer: { 
+                text: '© Almost Divorced Clan'
+            },
+            thumbnail: {
+                url: ''
+            },
+            title: '  ⚔ Clan War Leagues ⚔  RSVP',
+            fields: [{
+                name: 'First Battle Day is Sep-2',
+                value: '`⚔`'
+            }, {
+                name: 'Will   '+playerStr+'   be participating?',
+                value: '`✅ = Yes      ❎ = No`'
+            }]
+        }
+    };
+
+    botSendCommandQueue.enqueue({command: "sendMessage", input: cmdInput, 
+        callback: handleFirstQuestionCallback.bind({playerTag: playerTag, discordUserId: discordUserId, playerStr: playerStr})
+    });
+}
+
+ALL_VALID_REACTIONS = new Set(["✅", "❎", "🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣"]);
+Q1_REACTIONS = ["✅", "❎"];
+
+function handleFirstQuestionCallback(err, res) {
+    const playerTag = this.playerTag;
+    const discordUserId = this.discordUserId;
+    const playerStr = this.playerStr;
+    const messageID = res.id;
+    const channelID = res.channel_id;
+    watchedMessageIds.add(messageID);
+    // Save in database to handle service restarts.
+    models.CwlRsvp.findByPk(playerTag).then(cwlRsvp => {
+        if (cwlRsvp) {
+            cwlRsvp.firstquestion = messageID;
+        } else {
+            cwlRsvp = models.CwlRsvp.build({playertag: playerTag});
+            cwlRsvp.channelid = channelID;
+            cwlRsvp.firstquestion = messageID;
+        }
+        cwlRsvp.save().then( function() {
+            Q1_REACTIONS.forEach(aReaction => {
+                var reactionInput = {
+                    channelID: channelID,
+                    messageID: messageID,
+                    reaction: aReaction
+                };
+                botReactionCommandQueue.enqueue({command: "addReaction", input: reactionInput});
+            });
+            //secondMessage(playerTag, discordUserId, playerStr);
+        });
+    });
+}
+
+function secondMessage(playerTag, discordUserId, playerStr) {
+    var cmdInput = {
+        to: discordUserId,
+        embed: {
+            color: 13683174,
+            description: 'Select the days you will attend. 🇦 = All Days.',
+            footer: { 
+                text: '© Almost Divorced Clan'
+            },
+            thumbnail: {
+                url: ''
+            },
+            title: ' Which days will '+playerStr+' be attending? ',
+        }
+    };
+
+    botSendCommandQueue.enqueue({command: "sendMessage", input: cmdInput, 
+        callback: handleSecondQuestionCallback.bind({playerTag: playerTag, discordUserId: discordUserId})
+    });
+   
+}
+
+const Q2_REACTIONS = ["🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣"];
+
+function handleSecondQuestionCallback(err, res) {
+    const playerTag = this.playerTag;
+    const discordUserId = this.discordUserId;
+    const messageID = res.id;
+    const channelID = res.channel_id;
+    watchedMessageIds.add(messageID);
+    // Save in database to handle service restarts.
+    models.CwlRsvp.findByPk(playerTag).then(cwlRsvp => {
+        cwlRsvp.secondquestion = messageID;
+        cwlRsvp.save({fields: ['secondquestion']}).then( function() {
+            Q2_REACTIONS.forEach(aReaction => {
+                var reactionInput = {
+                    channelID: channelID,
+                    messageID: messageID,
+                    reaction: aReaction
+                };
+                botReactionCommandQueue.enqueue({command: "addReaction", input: reactionInput});
+            });
+        });
+    });
+}
+
+/**
+ * Generate a Google auth token and callsback the given the callback function with 
+ * the newly generated OAuth2 token.
+ * @param {json} credentials The json representing the OAuth2 credentials.
+ * @param {getEventsCallback} callback The callback for the authorized client.
+ */
+function authorize(credentials, callback) {
+    const {client_secret, client_id, redirect_uris} = credentials.installed;
+    const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+
+    // Check if we have previously stored a token.
+    fs.readFile(TOKEN_PATH, (err, token) => {
+        if (err) return getNewToken(oAuth2Client, callback);
+        oAuth2Client.setCredentials(JSON.parse(token));
+        callback(oAuth2Client);
+    });
+}
+
+/**
+ * Get and store new token after prompting for user authorization, and then
+ * execute the given callback with the authorized OAuth2 client.
+ * @param {google.auth.OAuth2} oAuth2Client The OAuth2 client to get token for.
+ * @param {getEventsCallback} callback The callback for the authorized client.
+ */
+function getNewToken(oAuth2Client, callback) {
+    const authUrl = oAuth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: SCOPES,
+    });
+    console.log('Authorize this app by visiting this url:', authUrl);
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+    rl.question('Enter the code from that page here: ', (code) => {
+        rl.close();
+        oAuth2Client.getToken(code, (err, token) => {
+            if (err) return console.error('Error while trying to retrieve access token', err);
+            oAuth2Client.setCredentials(token);
+            // Store the token to disk for later program executions
+            fs.writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
+                if (err) return console.error(err);
+                console.log('Token stored to', TOKEN_PATH);
+            });
+            callback(oAuth2Client);
+        });
+    });
+}
+
+
 function strip(someText) {
     someText = someText.replace(/(\r\n|\n|\r)/gm,"");
     someText = someText.replace(/,/gm,"");
@@ -1102,4 +1406,60 @@ const sleep = (milliseconds) => {
 
 function getKeyByValue(object, value) {
   return Object.keys(object).find(key => object[key] === value);
+}
+
+
+function Queue() {
+
+    // initialise the queue and offset
+    var queue  = [];
+    var offset = 0;
+
+    // Returns the length of the queue.
+    this.getLength = function(){
+        return (queue.length - offset);
+    }
+
+    // Returns true if the queue is empty, and false otherwise.
+    this.isEmpty = function(){
+        return (queue.length == 0);
+    }
+
+    /* Enqueues the specified item. The parameter is:
+     *
+     * item - the item to enqueue
+     */
+    this.enqueue = function(item){
+        queue.push(item);
+    }
+
+    /* Dequeues an item and returns it. If the queue is empty, the value
+     * 'undefined' is returned.
+     */
+    this.dequeue = function() {
+
+        // if the queue is empty, return immediately
+        if (queue.length == 0) return undefined;
+
+        // store the item at the front of the queue
+        var item = queue[offset];
+
+        // increment the offset and remove the free space if necessary
+        if (++ offset * 2 >= queue.length){
+            queue  = queue.slice(offset);
+            offset = 0;
+        }
+
+        // return the dequeued item
+        return item;
+
+    }
+
+    /* Returns the item at the front of the queue (without dequeuing it). If the
+     * queue is empty then undefined is returned.
+     */
+    this.peek = function(){
+        return (queue.length > 0 ? queue[offset] : undefined);
+    }
+
 }

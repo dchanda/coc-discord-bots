@@ -85,6 +85,7 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
+	console.log(message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -101,7 +102,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 return;
             }
         }
-        switch(cmd) {
+        switch(cmd.toLowerCase()) {
             // !ping
             case 'ping':
                 bot.sendMessage({
@@ -835,6 +836,17 @@ function confirmRoster(auth) {
         bot.sendMessage({
             to: channelID,
             message: "No roster to confirm."
+        });
+        return;
+    }
+    var totalCount = 0;
+    negotiation.members.forEach( member => {
+        if (member.inc) totalCount++;
+    });
+    if (totalCount != negotiation.rosterSize) {
+        bot.sendMessage({
+            to: channelID,
+            message: "Roster size: " + negotiation.rosterSize + "; Opted in: " + totalCount + ". Needs some edits!"
         });
         return;
     }

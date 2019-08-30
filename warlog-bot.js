@@ -123,7 +123,8 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 authorize(googleCredentials, summary.bind({'channelID': channelID, 'detail': true}));
                 break;
             case 'link':
-                authorize(googleCredentials, link.bind({'channelID': channelID, 'args': args}));
+                if (isPrivileged(userID, channelID, cmd, true))
+                    authorize(googleCredentials, link.bind({'channelID': channelID, 'args': args}));
                 break;
             case 'pnotify':
                 if (isPrivileged(userID, channelID, cmd))
@@ -1987,8 +1988,13 @@ function checkClaimsForClan(auth, clanFamilyPrefs, reschedule) {
     });
 }
 
-function isPrivileged(userID, channelID, cmd) {
-    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+function isPrivileged(userID, channelID, cmd, parentClan) {
+    var clanFamilyPrefs = null;
+    if (parentClan) 
+        clanFamilyPrefs = getPreferencesOfMainClan();
+    else
+        clanFamilyPrefs = getPreferencesFromChannel(channelID);
+
     if (!clanFamilyPrefs) {
         unknownChannelMessage(channelID);
         return false;
@@ -1996,6 +2002,7 @@ function isPrivileged(userID, channelID, cmd) {
     var privilegedMembers = clanFamilyPrefs.privilegedMembers;
     return privilegedMembers.includes(userID);
 }
+
 
 /**
  * Generate a Google auth token and callsback the given the callback function with 
@@ -2065,6 +2072,15 @@ function getKnownChannelsMsg() {
         message += "<#" + clanFamilyPrefs.discordChannelId + ">"
     }
     return message;
+}
+
+function getPreferencesOfMainClan() {
+    for(clanTag in CLAN_FAMILY) {
+        var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+        if (clanFamilyPrefs.parentClan) 
+            return clanFamilyPrefs;
+    }
+    return null;
 }
 
 function getPreferencesFromChannel(channelID) {

@@ -1039,7 +1039,7 @@ function seedMembers() {
 }
 
 function getCurrentData(callback) {
-    clashapi.getClanInfos(CLAN_TAGS, function(err, clanInfos) {
+    clashapi.getClanInfosNew(CLAN_TAGS, function(err, clanInfos) {
         if (err) {
             logger.warn('Error fetching Clan info');
             return;

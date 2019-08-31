@@ -1198,7 +1198,7 @@ function handleReaction(channelID, messageID, emoji, add) {
                 case "7⃣":
                     value = "7"; break;
                 case "🆗":
-                    purgeCwlPoll(channelID); break;
+                    purgeCwlPoll(channelID, messageID); break;
             }
             if (value) {
                 if (add) previousAnswerArr.push(value);
@@ -1255,6 +1255,7 @@ setInterval(function() {
     command = botSendCommandQueue.dequeue();
     if (command) {
         bot.sendMessage(command.input, command.callback);
+        console.log("Pending SendCommands: " + botSendCommandQueue.getLength());
     }
 }, 15000);
 
@@ -1263,6 +1264,7 @@ setInterval(function() {
     command = botReactionCommandQueue.dequeue();
     if (command) {
         bot.addReaction(command.input);
+        console.log("Pending Reaction Commands: " + botReactionCommandQueue.getLength());
     }
 }, 1000);
 
@@ -1466,21 +1468,12 @@ setInterval(function() {
     }
 }, 1500);
 
-function purgeCwlPoll(channelID) {
+function purgeCwlPoll(channelID, messageID) {
     if (channelID) {
-        bot.getMessages({
-            channelID: channelID
-        }, (err, response) => {
-            if (err) return;
-            message_ids = [];
-            response.forEach( message => {
-                if (message.author.id == BOT_CONFIGS.botUserId) {
-                    deleteQueue.enqueue({
-                        channelID: channelID,
-                        messageID: message.id
-                    });
-                }
-            });
+        models.CwlRsvp.findOne({where: {secondquestionanswer: messageID, channelid: channelID}}).then(cwlRsvp => {
+            if (!cwlRsvp) return;
+            deleteQueue.enqueue({channelID: channelID, messageID: cwlRsvp.firstquestion});
+            deleteQueue.enqueue({channelID: channelID, messageID: cwlRsvp.secondquestion});
         });                        
     } else {
         models.CwlRsvp.findAll().then( cwlRsvps => {

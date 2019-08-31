@@ -213,7 +213,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'purgedms':
                 if (PRIVILEGED_MEMBERS.has(userID))
-                    purgeCwlPoll();
+                    if (args.length > 0)
+                        purgeCwlPoll(args[0]);
+                    else
+                        purgeCwlPoll();
                 break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -1455,13 +1458,13 @@ function uploadcwldata() {
 
 var deleteQueue = new Queue();
 
-// setInterval(function() {
-//     var input = deleteQueue.dequeue();
-//     if (input) {
-//         bot.deleteMessage(input);
-//         console.log("Pending : " + deleteQueue.getLength());
-//     }
-// }, 1500);
+setInterval(function() {
+    var input = deleteQueue.dequeue();
+    if (input) {
+        bot.deleteMessage(input);
+        console.log("Pending : " + deleteQueue.getLength());
+    }
+}, 1500);
 
 function purgeCwlPoll(channelID) {
     if (!channelID) {

@@ -137,6 +137,9 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 60000);
+    setInterval(function() {
+        uploadcwldata();
+    }, 300000);
     setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
@@ -203,6 +206,14 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'cwlcheck':
                 if (PRIVILEGED_MEMBERS.has(userID))
                     authorize(googleCredentials, cwlcheck);
+                break;
+            case 'uploadcwldata':
+                if (PRIVILEGED_MEMBERS.has(userID))
+                    authorize(googleCredentials, uploadcwldata);
+                break;
+            case 'purgedms':
+                if (PRIVILEGED_MEMBERS.has(userID))
+                    purgeCwlPoll();
                 break;
             case 'date':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -1194,6 +1205,14 @@ function handleReaction(channelID, messageID, emoji, add) {
     });
 }
 
+
+const EXCL_CWL_COL = 9;
+const EXCL_CWL_POLL_COL = 8;
+const TOWNHALL_LEVEL_COL = 4;
+const PLAYER_TAG_COL = 0;
+const NAME_COL = 1;
+const DISCORD_ID_COL = 3;
+
 function cwlcheck(auth) {
     const sheets = google.sheets({version: 'v4', auth});
 
@@ -1210,9 +1229,13 @@ function cwlcheck(auth) {
         data.forEach( row => {
             if (row[8] && row[8] == "X") return;
             if (row[3] && row[3].length > 1) {
-                console.log("Sending Notification for - " + row[1]);
-                firstMessage(row[3], row[1], row[0], row[4]);
-                secondMessage(row[3], row[1], row[0], row[4]);
+                console.log("Sending Notification for - " + row[NAME_COL]);
+                models.CwlRsvp.findByPk(row[PLAYER_TAG_COL]).then( cwlRsvp => ({
+                    if (!cwlRsvp) {
+                        firstMessage(row[DISCORD_ID_COL], row[NAME_COL], row[PLAYER_TAG_COL], row[TOWNHALL_LEVEL_COL]);
+                        secondMessage(row[DISCORD_ID_COL], row[NAME_COL], row[PLAYER_TAG_COL], row[TOWNHALL_LEVEL_COL]);                        
+                    }
+                }));
             }
         });
     });
@@ -1267,7 +1290,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel) {
     });
 }
 
-ALL_VALID_REACTIONS = new Set(["✅", "❎", "🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣"]);
+ALL_VALID_REACTIONS = new Set(["✅", "❎", "🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣", "🆗"]);
 Q1_REACTIONS = ["✅", "❎"];
 
 function handleFirstQuestionCallback(err, res) {
@@ -1312,6 +1335,10 @@ function secondMessage(discordUserId, name, playerTag, townhallLevel) {
                 url: ''
             },
             title: ' Which days will '+playerStr+' be attending? ',
+            fields: [{
+                name: 'Confirmation',
+                value: 'After completing your choice, please click 🆗 to confirm!'
+            }]
         }
     };
 
@@ -1321,7 +1348,7 @@ function secondMessage(discordUserId, name, playerTag, townhallLevel) {
    
 }
 
-const Q2_REACTIONS = ["🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣"];
+const Q2_REACTIONS = ["🇦", "1⃣", "2⃣", "3⃣", "4⃣", "5⃣", "6⃣", "7⃣", "🆗"];
 
 function handleSecondQuestionCallback(err, res) {
     const playerTag = this.playerTag;
@@ -1343,6 +1370,126 @@ function handleSecondQuestionCallback(err, res) {
             });
         });
     });
+}
+
+function uploadcwldata() {
+    authorize(googleCredentials, (auth) => {
+        const sheets = google.sheets({version: 'v4', auth});
+
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ROSTER!A2:J150',
+        }, (err, res) => {
+            if(err) {
+                logger.error("Google API Error: " + err);
+                console.log(err);
+                return;
+            }
+            roster = res.data.values;
+            models.CwlRsvp.findAll().then( cwlRsvps => {
+                var cwldata = [];
+                if (cwlRsvps.length == 0) return;
+                roster.forEach( rosterRow => {
+                    if (rosterRow[EXCL_CWL_COL] && rosterRow[EXCL_CWL_COL] == 'X') {
+                        //This means player is excluded from CWL.
+                        return;
+                    } else  if (!rosterRow[EXCL_CWL_COL] || rosterRow[EXCL_CWL_COL]=="") {
+                        if (rosterRow[EXCL_CWL_POLL_COL] && rosterRow[EXCL_CWL_POLL_COL]=="X") {
+                            //This means poll is not needed. Player is automatically included in CWL.
+                            cwldata.push({
+                                tag: rosterRow[PLAYER_TAG_COL], 
+                                townhallLevel: rosterRow[TOWNHALL_LEVEL_COL],
+                                rsvp: "Y", days: "A"
+                            });
+                        } else if (!rosterRow[EXCL_CWL_POLL_COL] || rosterRow[EXCL_CWL_POLL_COL]=="") {
+                            //Need to check poll data;
+                            var cwlRsvp = _getCwlRsvp(cwlRsvps, rosterRow[PLAYER_TAG_COL]);
+                            var rsvp = '';
+                            var rsvpResponse = '';
+                            if (cwlRsvp && cwlRsvp.firstquestionanswer && cwlRsvp.firstquestionanswer != "") 
+                                rsvp = cwlRsvp.firstquestionanswer;
+                            if (cwlRsvp && cwlRsvp.secondquestionanswer && cwlRsvp.secondquestionanswer != "")
+                                rsvpResponse = cwlRsvp.secondquestionanswer;
+                            cwldata.push({
+                                tag: rosterRow[PLAYER_TAG_COL], 
+                                townhallLevel: rosterRow[TOWNHALL_LEVEL_COL],
+                                rsvp: rsvp, days: rsvpResponse,
+                            });
+                        }
+                    }
+                }); 
+
+                var tags = [];
+                cwldata = cwldata.sort( (data1, data2) => {
+                    // if (data1.townhallLevel == data2.townhallLevel)
+                    //     return data1.tag > data2.tag;
+                    return data1.townhallLevel - data2.townhallLevel;
+                });
+                cwldata.forEach( cwldataobj => {
+                    tags.push([cwldataobj.rsvp, cwldataobj.days, cwldataobj.tag]);
+                });
+
+                var cwlUpdateData = [];
+                cwlUpdateData.push({range: 'CWL LIST!A5:C' + tags.length+5, values: tags});
+
+                sheets.spreadsheets.values.batchUpdate({
+                    spreadsheetId: SPREADSHEET_ID,
+                    resource: {
+                        data: cwlUpdateData,
+                        valueInputOption: 'USER_ENTERED'
+                    }
+                }, (err, res) => {
+                    if (err) {
+                        console.log(err);
+                        return;
+                    }
+                    console.log("Successfully Uploaded Data");
+                });
+
+            });
+        });
+    });
+}
+
+var deleteQueue = new Queue();
+
+// setInterval(function() {
+//     var input = deleteQueue.dequeue();
+//     if (input) {
+//         bot.deleteMessage(input);
+//         console.log("Pending : " + deleteQueue.getLength());
+//     }
+// }, 1500);
+
+function purgeCwlPoll() {
+    models.CwlRsvp.findAll().then( cwlRsvps => {
+        cwlRsvps.forEach(cwlRsvp => {
+            var channelID = cwlRsvp.channelid;
+            sleep(1000).then(() => {
+                bot.getMessages({
+                    channelID: channelID
+                }, (err, response) => {
+                    if (err) return;
+                    message_ids = [];
+                    response.forEach( message => {
+                        if (message.author.id == BOT_CONFIGS.botUserId) {
+                            deleteQueue.enqueue({
+                                channelID: channelID,
+                                messageID: message.id
+                            });
+                        }
+                    });
+                });                
+            });
+        });
+    });
+}
+
+function _getCwlRsvp(cwlRsvpList, playerTag) {
+    for(var i=0; i<cwlRsvpList.length; i++) {
+        if (cwlRsvpList[i].playertag == playerTag) return cwlRsvpList[i];
+    }
+    return null;
 }
 
 /**

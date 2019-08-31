@@ -1232,12 +1232,12 @@ function cwlcheck(auth) {
             if (row[8] && row[8] == "X") return;
             if (row[3] && row[3].length > 1) {
                 console.log("Sending Notification for - " + row[NAME_COL]);
-                models.CwlRsvp.findByPk(row[PLAYER_TAG_COL]).then( cwlRsvp => ({
+                models.CwlRsvp.findByPk(row[PLAYER_TAG_COL]).then( cwlRsvp => {
                     if (!cwlRsvp) {
                         firstMessage(row[DISCORD_ID_COL], row[NAME_COL], row[PLAYER_TAG_COL], row[TOWNHALL_LEVEL_COL]);
                         secondMessage(row[DISCORD_ID_COL], row[NAME_COL], row[PLAYER_TAG_COL], row[TOWNHALL_LEVEL_COL]);                        
                     }
-                }));
+                });
             }
         });
     });

@@ -1194,6 +1194,8 @@ function handleReaction(channelID, messageID, emoji, add) {
                     value = "6"; break;
                 case "7⃣":
                     value = "7"; break;
+                case "":
+                    purgeCwlPoll(channelID);
             }
             if (value) {
                 if (add) previousAnswerArr.push(value);
@@ -1461,28 +1463,45 @@ var deleteQueue = new Queue();
 //     }
 // }, 1500);
 
-function purgeCwlPoll() {
-    models.CwlRsvp.findAll().then( cwlRsvps => {
-        cwlRsvps.forEach(cwlRsvp => {
-            var channelID = cwlRsvp.channelid;
-            sleep(1000).then(() => {
-                bot.getMessages({
-                    channelID: channelID
-                }, (err, response) => {
-                    if (err) return;
-                    message_ids = [];
-                    response.forEach( message => {
-                        if (message.author.id == BOT_CONFIGS.botUserId) {
-                            deleteQueue.enqueue({
-                                channelID: channelID,
-                                messageID: message.id
-                            });
-                        }
+function purgeCwlPoll(channelID) {
+    if (!channelID) {
+        bot.getMessages({
+            channelID: channelID
+        }, (err, response) => {
+            if (err) return;
+            message_ids = [];
+            response.forEach( message => {
+                if (message.author.id == BOT_CONFIGS.botUserId) {
+                    deleteQueue.enqueue({
+                        channelID: channelID,
+                        messageID: message.id
                     });
-                });                
+                }
+            });
+        });                        
+    } else {
+        models.CwlRsvp.findAll().then( cwlRsvps => {
+            cwlRsvps.forEach(cwlRsvp => {
+                var channelID = cwlRsvp.channelid;
+                sleep(1000).then(() => {
+                    bot.getMessages({
+                        channelID: channelID
+                    }, (err, response) => {
+                        if (err) return;
+                        message_ids = [];
+                        response.forEach( message => {
+                            if (message.author.id == BOT_CONFIGS.botUserId) {
+                                deleteQueue.enqueue({
+                                    channelID: channelID,
+                                    messageID: message.id
+                                });
+                            }
+                        });
+                    });
+                });
             });
         });
-    });
+    }
 }
 
 function _getCwlRsvp(cwlRsvpList, playerTag) {

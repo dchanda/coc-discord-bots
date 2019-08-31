@@ -1197,8 +1197,8 @@ function handleReaction(channelID, messageID, emoji, add) {
                     value = "6"; break;
                 case "7⃣":
                     value = "7"; break;
-                case "":
-                    purgeCwlPoll(channelID);
+                case "🆗":
+                    purgeCwlPoll(channelID); break;
             }
             if (value) {
                 if (add) previousAnswerArr.push(value);
@@ -1467,7 +1467,7 @@ setInterval(function() {
 }, 1500);
 
 function purgeCwlPoll(channelID) {
-    if (!channelID) {
+    if (channelID) {
         bot.getMessages({
             channelID: channelID
         }, (err, response) => {

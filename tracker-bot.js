@@ -137,9 +137,9 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 60000);
-    setInterval(function() {
-        uploadcwldata();
-    }, 300000);
+    // setInterval(function() {
+    //     uploadcwldata();
+    // }, 300000);
     setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
@@ -1064,7 +1064,8 @@ function getCurrentData(callback) {
             if (clanInfo == null) {
                 logger.warn('Missing clan member details for clan "' + clanTag + '"');
                 continue;
-            }            var members = clanInfo.memberList;
+            }            
+            var members = clanInfo.memberList;
             members.forEach(member => {
                 playerAttribMap = {
                     "donationsReceived": member.donationsReceived,
@@ -1251,22 +1252,22 @@ const botReactionCommandQueue = new Queue();
 const watchedMessageIds = new Set();
 
 //Dequeue sendCommands - Once every 20secs.
-setInterval(function() {
-    command = botSendCommandQueue.dequeue();
-    if (command) {
-        bot.sendMessage(command.input, command.callback);
-        console.log("Pending SendCommands: " + botSendCommandQueue.getLength());
-    }
-}, 15000);
+// setInterval(function() {
+//     command = botSendCommandQueue.dequeue();
+//     if (command) {
+//         bot.sendMessage(command.input, command.callback);
+//         console.log("Pending SendCommands: " + botSendCommandQueue.getLength());
+//     }
+// }, 15000);
 
 
-setInterval(function() {
-    command = botReactionCommandQueue.dequeue();
-    if (command) {
-        bot.addReaction(command.input);
-        console.log("Pending Reaction Commands: " + botReactionCommandQueue.getLength());
-    }
-}, 1000);
+// setInterval(function() {
+//     command = botReactionCommandQueue.dequeue();
+//     if (command) {
+//         bot.addReaction(command.input);
+//         console.log("Pending Reaction Commands: " + botReactionCommandQueue.getLength());
+//     }
+// }, 1000);
 
 function firstMessage(discordUserId, name, playerTag, townhallLevel) {
     var playerStr = name+'-('+playerTag+')-TH'+townhallLevel;
@@ -1460,13 +1461,13 @@ function uploadcwldata() {
 
 var deleteQueue = new Queue();
 
-setInterval(function() {
-    var input = deleteQueue.dequeue();
-    if (input) {
-        bot.deleteMessage(input);
-        console.log("Pending : " + deleteQueue.getLength());
-    }
-}, 1500);
+// setInterval(function() {
+//     var input = deleteQueue.dequeue();
+//     if (input) {
+//         bot.deleteMessage(input);
+//         console.log("Pending : " + deleteQueue.getLength());
+//     }
+// }, 1500);
 
 function purgeCwlPoll(channelID, messageID) {
     if (channelID) {

@@ -14,6 +14,8 @@ exports.getPlayerInfo = getPlayerInfo;
 exports.getJoinDate = getJoinDate;
 exports.getCurrentWar = getCurrentWar;
 exports.getClanInfosNew = getClanInfosNew;
+exports.getCWLWarTag = getCWLWarTag;
+exports.getCWLAttackSummary = getCWLAttackSummary;
 
 
 function getClanInfo(clanTag, callback) {
@@ -158,6 +160,86 @@ function getCurrentWar(clanTag, callback) {
         callback(null, responseJson);
     });
 
+}
+
+function getCWLWarTag(clanTag, round, callback) {
+    var args = {
+        path: {'clanTag': encodeURIComponent(clanTag)},
+        headers: CLASH_CONFIG.auth
+    };
+
+    if (round > 7 || round < 1) {
+        callback({message: 'Invalid day number.',
+            code: 900},
+            null);
+        return;
+    }
+
+    var attackSummary = {};
+    restClient.get(CLASH_CONFIG.urlPrefix + '/v1/clans/${clanTag}/currentwar/leaguegroup', args, function(responseJson, response) {
+        if (response.statusCode != 200) {
+            logger.warn('Error fetching current war information!');
+            logger.debug('Response status Code: ' + response.statusCode);
+            logger.debug('Response : ' + responseJson);
+            callback({message: 'Clash API Error! - War Log not public for Clan - ' + clanTag,
+                code: response.statusCode}, 
+                null);
+            return;
+        }
+
+        var roundWarTags = responseJson.rounds[round-1].warTags;
+        if (roundWarTags[0] == "#0") {
+            logger.warn("War did not start for round '" + round + "' yet!");
+            callback({
+                message: "War did not start for round '" + round + "' yet!",
+                code: 901
+            }, null);
+            return;
+        }
+        __checkCWLWarTag(clanTag, roundWarTags, callback);
+    });
+}
+
+function __checkCWLWarTag(clanTag, warTags, callback) {
+    var warTag = warTags.pop();
+    var cwlArgs = {
+        path: {'warTag': encodeURIComponent(warTag)},
+        headers: CLASH_CONFIG.auth
+    };
+    restClient.get(CLASH_CONFIG.urlPrefix + '/v1/clanwarleagues/wars/${warTag}', cwlArgs, function(warResponseJson, warResponse) {
+        if (warResponse.statusCode != 200) {
+            logger.warn('Error fetching current war information!');
+            logger.debug('Response status Code: ' + warResponse.statusCode);
+            logger.debug('Response : ' + warResponseJson);
+            return;
+        }
+        if (warResponseJson.clan.tag == clanTag || warResponseJson.opponent.tag == clanTag)
+            callback(null, warTag);
+        else
+            __checkCWLWarTag(clanTag, warTags, callback);
+    });
+}
+
+
+function getCWLAttackSummary(warTag, callback) {
+    var args = {
+        path: {'warTag': encodeURIComponent(warTag)},
+        headers: CLASH_CONFIG.auth
+    };
+
+    var attackSummary = {};
+    restClient.get(CLASH_CONFIG.urlPrefix + '/v1/clanwarleagues/wars/${warTag}', args, function(responseJson, response) {
+        if (response.statusCode != 200) {
+            logger.warn('Error fetching current war information!');
+            logger.debug('Response status Code: ' + response.statusCode);
+            logger.debug('Response : ' + responseJson);
+            callback({message: 'Clash API Error! - War Log not public for Clan - ' + clanTag,
+                code: response.statusCode}, 
+                null);
+            return;
+        } 
+        callback(null, responseJson);
+    });
 }
 
 function getAttackSummary(clanTag, opponentClanTag, callback) {

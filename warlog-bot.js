@@ -529,66 +529,76 @@ function fetchAndUpdateCWLLog(auth) {
                     values: [[warTag]]
                 }
             }, (err, res) => {
-                if (err) console.log(err);
-            });
-        });
-    } else {
-        clashapi.getCWLAttackSummary(clanFamilyPrefs.cwlWarTag, function(err, cwlWarData) {
-            if(err) {
-                console.log(err);
-                return;
-            }
-            if (cwlWarData.state = "warEnded") {
-                if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag);}
-                clanFamilyPrefs.round = clanFamilyPrefs.round+1;
-                clanFamilyPrefs.cwlWarTag = null;
-            }
-            var members = null;
-            if (cwlWarData.clan.tag == clanTag)
-                members = cwlWarData.clan.members;
-            else 
-                members = cwlWarData.opponent.members;
-            sheets.spreadsheets.values.get({
-                spreadsheetId: SPREADSHEET_ID,
-                range: 'CWL!C' + (clanFamilyPrefs.cwlWarTagRow+2) + ':J80',
-            }, (err, res) => {
                 if (err) {
                     console.log(err);
                     return;
                 }
-                var updateData = [];
-                var sheetCWLData = res.data.values;
+            });
+            _updateCWLLog(sheets, clanTag);
+        });
+    } else {
+        _updateCWLLog(sheets, clanTag);
+    }
+}
 
-                var memberCount = 0;
-                while(true) {
-                    if (sheetCWLData[memberCount][round])
-                        updateData.push([sheetCWLData[memberCount][round]]);
-                    else
-                        break;
-                    memberCount++;
+function _updateCWLLog(sheets, clanTag) {
+    var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+    var round = clanFamilyPrefs.round;
+    clashapi.getCWLAttackSummary(clanFamilyPrefs.cwlWarTag, function(err, cwlWarData) {
+        if(err) {
+            console.log(err);
+            return;
+        }
+        if (cwlWarData.state == "warEnded") {
+            if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag);}
+            clanFamilyPrefs.round = clanFamilyPrefs.round+1;
+            clanFamilyPrefs.cwlWarTag = null;
+        }
+        var members = null;
+        if (cwlWarData.clan.tag == clanTag)
+            members = cwlWarData.clan.members;
+        else 
+            members = cwlWarData.opponent.members;
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'CWL!C' + (clanFamilyPrefs.cwlWarTagRow+2) + ':J80',
+        }, (err, res) => {
+            if (err) {
+                console.log(err);
+                return;
+            }
+            var updateData = [];
+            var sheetCWLData = res.data.values;
+
+            var memberCount = 0;
+            while(true) {
+                if (sheetCWLData[memberCount][round])
+                    updateData.push([sheetCWLData[memberCount][round]]);
+                else
+                    break;
+                memberCount++;
+            }
+            members.forEach( member => {
+                if ("attacks" in member) {
+                    var memberIdx = search2D(sheetCWLData, 0, member.tag);
+                    var attack = member["attacks"][0];
+                    updateData[memberIdx][0] = attack.stars;
                 }
-                members.forEach( member => {
-                    if ("attacks" in member) {
-                        var memberIdx = search2D(sheetCWLData, 0, member.tag);
-                        var attack = member["attacks"][0];
-                        updateData[memberIdx][0] = attack.stars;
-                    }
-                });
-                sheets.spreadsheets.values.update({
-                    spreadsheetId: SPREADSHEET_ID,
-                    range: 'CWL!'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2)+':'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
-                    valueInputOption: 'USER_ENTERED',
-                    resource: {
-                        values: updateData
-                    }                    
-                }, (err, res) => {
-                    if (err) 
-                        console.log(err);
-                    return;
-                });
+            });
+            sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'CWL!'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2)+':'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
+                valueInputOption: 'USER_ENTERED',
+                resource: {
+                    values: updateData
+                }                    
+            }, (err, res) => {
+                if (err) 
+                    console.log(err);
+                return;
             });
         });
-    }
+    });
 }
 
 function addwar(auth) {

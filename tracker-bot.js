@@ -97,11 +97,9 @@ const loadMemberQueue = async.queue(function(memberTag, callback) {
     _fetchAndSaveMember(memberTag, playersMap, callback);
 }, 5);
 
-const fetchResearchInfoQueue = async.queue(function(troopName, callback) {
-    _fetchResearchData(troopName, callback);
-}, 5);
+const fetchResearchInfoQueue = async.queue(_fetchResearchData, 5);
 
-// saveMemberQueue.drain = _announceUpgrades;
+const masterRosterQueue = async.queue(addMemberToMasterRoster, 1);
 
 loadMemberQueue.drain = _announceUpgrades;
 
@@ -1030,12 +1028,58 @@ function _fetchAndSaveMember(playerTag, resultHolder, callback) {
             } else {
                 player.setTroops(troops);
                 player.setSpells(spells);
-                player.save().then(function() {
+                masterRosterQueue.push(player);
+                player.save().then(() => {
                     callback();
                 }).catch(error => {
                     logger.error('Error occured saving PlayerData for ' + playerInfo.tag);
                     logger.error(error);
                     callback();
+                });
+            }
+        });
+    });
+}
+
+function addMemberToMasterRoster(player, callback) {
+    if (arguments.length == 0) {
+        player = this.player;
+    }
+    authorize(googleCredentials, (auth) => {
+        const sheets = google.sheets({version: 'v4', auth});
+
+        sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ROSTER!A2:A150',
+        }, (err, res) => {
+            if (err) {
+                console.log("Error while fetching player tags from Master Roster.")
+                console.log(err);
+                callback();
+            } else {
+                var playerTags = res.data.values;
+                var nextIndex = playerTags.length+2;
+                var newMemberRow = [ 
+                    player.tag,
+                    player.name,
+                    player.joinDate,
+                    "",
+                    player.townhallLevel,
+                    player.clan,
+                ];
+                logger.info("Adding '" + player.name + "' to Master Roster!")                
+                sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: 'ROSTER!A'+nextIndex+':F'+nextIndex,
+                    valueInputOption: 'USER_ENTERED',
+                    resource: {
+                        values: [newMemberRow]
+                    }
+                }, (err, res) => {
+                    if(err) 
+                        console.log(err);
+                    if(callback)
+                        callback();
                 });
             }
         });
@@ -1137,6 +1181,10 @@ function _loadResearchData(html) {
                 continue;
             }
             if ($(headers[j]).text().indexOf('Upgrade') > -1 && researchTimeCol == -1) {
+                researchTimeCol = j;
+                continue;
+            }
+            if ($(headers[j]).text().indexOf('Upgrading Time') > -1 && researchTimeCol == -1) {
                 researchTimeCol = j;
                 continue;
             }

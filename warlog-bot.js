@@ -56,6 +56,10 @@ setTimeout(function() {
 
 for(clanTag in CLAN_FAMILY) {
     scheduleWarLogUpdater(30000, clanTag);
+    //Start a notification thread for war start time for each clan after 10secs.
+    setTimeout(function() {
+        authorize(googleCredentials, checkAndStartWarNotificationThread.bind({clanTag: clanTag}));
+    }, 10000);
 }
 
 //Refersh Clan Tag every 1 hr.
@@ -87,7 +91,6 @@ bot.on('ready', function (evt) {
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
-	console.log(message);
     // Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -278,7 +281,7 @@ function fetchAndUpdateWarLog(auth) {
         } else if (res.data.values[0][0] == 'CWL') {
             startCWLThread(clanTag, auth);
         } else {
-            clanFamilyPrefs["opponentClanTag"] = res.data.values[0][0];
+            clanFamilyPrefs["opponentClanTag"] = res.data.values[1][0];
             clashapi.getAttackSummary('', clanFamilyPrefs["opponentClanTag"], _updateWarLog.bind({auth: auth, clanTag: clanTag}));
         }
     });
@@ -366,7 +369,7 @@ function _updateWarLog(err, attackSummary) {
             baseStatus.push([stars]);
         });
         updateData.push({range: warsheet+'!G5:H'+ (warLogUpdate.length+4),values: warLogUpdate});
-        updateData.push({range: CLAIMS+'!'+baseStatusColumn+'3:'+baseStatusColumn+(baseStatus.length+2),values: baseStatus});
+        updateData.push({range: CLAIMS+'!'+baseStatusColumn+'4:'+baseStatusColumn+(baseStatus.length+3),values: baseStatus});
         sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID,
             resource: {
@@ -406,6 +409,66 @@ function _updateWarLog(err, attackSummary) {
         });
         logger.info('Updating war log for "' + clanTag + '"');
     });
+}
+
+function checkAndStartWarNotificationThread(auth) {
+    var clanTag = this.clanTag;
+    var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+
+    const sheets = google.sheets({version: 'v4', auth});
+
+    sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: CLAIMS+'!'+clanFamilyPrefs.baseStatusColumn+'3'
+    }, (err, res) => {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        var startTimeStr = null;
+        if (res.data.values.length > 0 && res.data.values[0] && res.data.values[0][0])
+            startTimeStr = res.data.values[0][0];
+        if (startTimeStr != null) {
+            var startTime = moment(startTimeStr);
+            //var duration = startTime.diff(moment(), 'milliseconds');
+            warNotification(startTime, clanTag);
+        }
+    });
+}
+
+function warNotification(startTime, clanTag) {
+    var message = this.message;
+    if (arguments.length == 0) {
+        startTime = this.startTime;
+        clanTag = this.clanTag;
+    }
+    if (message && message.length > 0) {
+        var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+        bot.sendMessage({
+            to: clanFamilyPrefs.discordChannelId,
+            message: message
+        });
+    }
+    var duration = startTime.diff(moment(), 'milliseconds');
+    if ((duration-3600000) > 0) {
+        setTimeout(warNotification.bind({
+            startTime: startTime,
+            clanTag: clanTag,
+            message: "⚔ War starting in 1 hr ⚔"
+        }), duration-3600000);
+    } else if (duration+10000 > 0) {
+        setTimeout(warNotification.bind({
+            startTime: startTime,
+            clanTag: clanTag,
+            message: "⚔ War started ⚔"
+        }), duration+10000);
+    } else if (ONE_HOUR*23+duration > 0) {
+        setTimeout(warNotification.bind({
+            startTime: startTime,
+            clanTag: clanTag,
+            message: "⚔ War ending in 1hr. Get your attacks in! ⚔"
+        }), ONE_HOUR*23+duration);
+    }
 }
 
 function help(channelID) {
@@ -572,7 +635,7 @@ function _updateCWLLog(sheets, clanTag) {
 
             var memberCount = 0;
             while(true) {
-                if (sheetCWLData[memberCount][round])
+                if (sheetCWLData[memberCount] && sheetCWLData[memberCount][round])
                     updateData.push([sheetCWLData[memberCount][round]]);
                 else
                     break;
@@ -743,7 +806,7 @@ function addwar(auth) {
                                 "sheetId": CLAIMS_SHEET_ID,
                                 "startRowIndex": 1,
                                 "startColumnIndex": baseStatusColumn.charCodeAt(0)-"A".charCodeAt(0),
-                                "endRowIndex": warSize,
+                                "endRowIndex": MAX_ROWS,
                                 "endColumnIndex": baseStatusColumn.charCodeAt(0)+1-"A".charCodeAt(0),
                             }
                         }
@@ -791,6 +854,7 @@ function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
 
     var clanFamilyPrefs = getPreferencesFromChannel(channelID);
     if (clanFamilyPrefs == null) return unknownChannelMessage();
+    var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
     var warsheet = clanFamilyPrefs.warsheet;
     var warSheetId = clanFamilyPrefs.sheetId;
 
@@ -805,25 +869,41 @@ function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
             var mapPositions = [];
             var attacks = [];
             var rowCount = 0;
+            var warStartTime = moment(currentWar.startTime);
             playerData.forEach( playerRow => {
                 if (playerRow.length > 0) {
                     playerTag = playerRow[1];
                     var mapPosition = "";
+                    var memberIdx = -1;
                     for(var i=0; i<members.length; i++) {
                         if (members[i].tag == playerTag) {
                             mapPosition = members[i].mapPosition;
+                            memberIdx = i;
                             break;
                         }  
                     }
+                    if (memberIdx >= 0)
+                        members.splice(memberIdx, 1); //Remove this member from list as he is already in roster.
                     if (mapPosition == "") attacks.push(["-","-"]);
                     else attacks.push(["XXX","XXX"]);
                     mapPositions.push([mapPosition]);
                     rowCount++;   
                 }
             });
+            
             rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!C5:C'+(rowCount+5), values: mapPositions});
             rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!G5:H'+(rowCount+5), values: attacks});
+            rosterUpdate.push({range: CLAIMS+'!'+baseStatusColumn+'3', values: [[currentWar.startTime]]});
 
+            //Now go through the remaining players (that are not in roster) and add them to roster.
+            for(var i=0; i<members.length; i++) {
+                rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!B'+(rowCount+i+5), values: [[members[i].tag]]});
+                rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!C'+(rowCount+i+5), values: [[members[i].mapPosition]]});
+                rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!G'+(rowCount+i+5), values: [['XXX']]});
+                rosterUpdate.push({range: clanFamilyPrefs.warsheet+'!H'+(rowCount+i+5), values: [['XXX']]});
+            }
+            rowCount = rowCount+members.length;
+            
             sheets.spreadsheets.values.batchUpdate({
                 spreadsheetId: SPREADSHEET_ID,
                 resource: {
@@ -866,7 +946,6 @@ function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
                         });
                         return;
                     }
-                    var warStartTime = moment(currentWar.startTime);
                     var duration = moment.duration(warStartTime.diff(moment()));
                     var startsIn = duration.hours() + "hrs " + duration.minutes() + "mins ";
                     bot.sendMessage({
@@ -1516,7 +1595,7 @@ function summary(auth) {
 
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, CLAIMS+'!'+baseStatusColumn+'3:'+baseStatusColumn+'42', CLAIMS+'!'+baseStatusColumn+'2']
+        ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, CLAIMS+'!'+baseStatusColumn+'4:'+baseStatusColumn+'54', CLAIMS+'!'+baseStatusColumn+'2']
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -1623,7 +1702,7 @@ function attack(auth) {
         spreadsheetId: SPREADSHEET_ID,
         ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!D5:D'+MAX_ROWS, 
                  warsheet+'!E5:E'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, 
-                 'CLAIMS!'+baseStatusColumn+'3:'+baseStatusColumn+'42',
+                 'CLAIMS!'+baseStatusColumn+'4:'+baseStatusColumn+'54',
                  'CLAIMS!'+basesAttackedColumn+'5:'+basesAttackedColumn+MAX_ROWS]
     }, (err, res) => { 
         if (err) {
@@ -1678,9 +1757,9 @@ function attack(auth) {
 
         if (baseStatus && baseStatus[attackedBaseNumber-1] && (''+baseStatus[attackedBaseNumber-1][0] != '3')) {
             //This is to record the current number of stars on a base. If already 3 starred, then no need to update.
-            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+2), values: [[stars]]}]); 
+            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+3), values: [[stars]]}]); 
         } else if (!baseStatus || !baseStatus[attackedBaseNumber]) {
-            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+2), values: [[stars]]}]); 
+            data.push([{range: CLAIMS+'!'+baseStatusColumn+(attackedBaseNumber+3), values: [[stars]]}]); 
         }
         
         if (playerIdx != -1) {

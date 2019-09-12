@@ -345,12 +345,12 @@ function _updateWarLog(err, attackSummary) {
                 if ('attack1' in playerAttacks) {
                     if (claims && claims[i] && claims[i][0] != '' && ''+claims[i][0] == ''+playerAttacks.attack1.base) {
                         if (playersData[i].length>3) resolvedClaims.push([playersData[i][0], playersData[i][3], claims[i][0], playerAttacks.attack1.stars]);
-                        updateData.push({range: WAR_LOG+'!E'+(i+5), values: [['']]});
+                        updateData.push({range: warsheet+'!E'+(i+5), values: [['']]});
                     }
                     if ('attack2' in playerAttacks) {
                         if (claims && claims[i] && claims[i][0] != '' && ''+claims[i][0] == ''+playerAttacks.attack2.base) {
                             if (playersData[i].length>3) resolvedClaims.push([playersData[i][0], playersData[i][3], claims[i][0], playerAttacks.attack2.stars]);
-                            updateData.push({range: WAR_LOG+'!E'+(i+5), values: [['']]});
+                            updateData.push({range: warsheet+'!E'+(i+5), values: [['']]});
                         }
                         warLogUpdate.push([ playerAttacks.attack1.stars,playerAttacks.attack2.stars ]);
                     } else {
@@ -1847,6 +1847,8 @@ function attack(auth) {
 function unclaim(auth) {
     const channelID = this.channelID;
     const args = this.args;
+    var clanFamilyPrefs = getPreferencesFromChannel(channelID);
+    var warsheet = clanFamilyPrefs.warsheet;
 
     const sheets = google.sheets({version: 'v4', auth});
     const values = [];
@@ -1873,7 +1875,7 @@ function unclaim(auth) {
 
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: WAR_LOG+'!A5:H54',
+        range: warsheet+'!A5:H54',
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -1915,7 +1917,7 @@ function unclaim(auth) {
             spreadsheetId: SPREADSHEET_ID,
             resource: {
                 data: [{
-                    range: WAR_LOG+'!E'+idx,
+                    range: warsheet+'!E'+idx,
                     values: [['']]
                 }, {
                     range: CLAIMS+'!A'+idx,

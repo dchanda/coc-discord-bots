@@ -748,12 +748,12 @@ function addwar(auth) {
                     timeToBeAdded += (parseInt(startsIn.split('h')[0]) * 60);
                     if (startsIn.split('h').length > 0) startsIn = startsIn.split('h')[1];
                 } 
-                if (startIn.indexOf('m') > 0) {
-                    timeToBAdded += parseInt(startsIn.split('m')[0]);
+                if (startsIn.indexOf('m') > 0) {
+                    timeToBeAdded += parseInt(startsIn.split('m')[0]);
                 }
-                var now = moment();
-                warStarTime = now.add('minutes', timeToBAdded);
-                warStarTime = warStartTime.format('YYYYMMDDTHHmmss') + '.000Z';
+                var warStartTime = moment();
+                warStartTime.add(timeToBeAdded, 'minutes');
+                warStartTime = warStartTime.format('YYYYMMDDTHHmmss') + '.000Z';
             }
 
             var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
@@ -827,7 +827,7 @@ function addwar(auth) {
                         }
                     },{
                         "updateCells": {
-                            "rows": [{"values": [{"userEnteredValue": {"numberValue": warSize}}, {"userEnteredValue": {"stringValue": warStartTime}}]}],
+                            "rows": [{"values": [{"userEnteredValue": {"numberValue": warSize}}]}, {"values": [{"userEnteredValue": {"stringValue": warStartTime}}]}],
                             "fields": "userEnteredValue/stringValue",
                             "range": {
                                 "sheetId": CLAIMS_SHEET_ID,

@@ -411,8 +411,9 @@ function _updateWarLog(err, attackSummary) {
     });
 }
 
-function checkAndStartWarNotificationThread(auth) {
-    var clanTag = this.clanTag;
+function checkAndStartWarNotificationThread(auth, clanTag) {
+    if (!clanTag)
+        clanTag = this.clanTag;
     var clanFamilyPrefs = CLAN_FAMILY[clanTag];
 
     const sheets = google.sheets({version: 'v4', auth});
@@ -527,7 +528,7 @@ function help(channelID) {
                 name: '!endwar <w/l> <finalscore>',
                 value: 'Closes the current war in progress with the final score.'
             }, {
-                name: '!addwar <opponent clanTag> <roster size> <ends in>',
+                name: '!addwar <opponent clanTag> <roster size> <starts in>',
                 value: 'Adds a new War column with the given opponent clan tag. If warlog is not public, this command needs to be followed with !in / !out / !confirm'
             }, {
                 name: '!in <roster num> <roster num> ... ...',
@@ -670,8 +671,11 @@ function addwar(auth) {
     var args = this.args;
     var opponentClanTag = args[0];
     var warSize = 40;
+    var startsIn = null;
     if (args.length > 1)
         warSize = parseInt(args[1]);
+    if (args.length > 2)
+        startsIn = args[2];
 
     var clanFamilyPrefs = getPreferencesFromChannel(channelID);
     if (clanFamilyPrefs == null) {
@@ -729,6 +733,31 @@ function addwar(auth) {
                 });
                 return;
             }
+            //20190911T173250.000Z
+            var warStartTime = "";
+            if (!clanInfo.isWarLogPublic && startsIn==null) {
+                bot.sendMessage({
+                    to: channelID,
+                    message: 'War Log is not public. I need to know when the war days starts! \n !addwar <opponent clanTag> <roster size> <starts in> (eg. 10h3m)'
+                });
+                return;
+            } else if (!clanInfo.isWarLogPublic && startsIn!=null) {
+                startsIn = startsIn.toLowerCase();
+                var timeToBeAdded = 0;
+                if (startsIn.indexOf('h') > 0) {
+                    timeToBeAdded += (parseInt(startsIn.split('h')[0]) * 60);
+                    if (startsIn.split('h').length > 0) startsIn = startsIn.split('h')[1];
+                } 
+                if (startIn.indexOf('m') > 0) {
+                    timeToBAdded += parseInt(startsIn.split('m')[0]);
+                }
+                var hrs = startsIn.split('h')[0];
+                var mins = startsIn.split('h')[];
+                var now = moment();
+                warStarTime = now().add('minutes', timeToBAdded);
+                warStarTime = warStartTime.format('YYYYMMDDTHHmmss') + '.000Z';
+            }
+
             var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
             var basesAttackedColumn = clanFamilyPrefs.basesAttackedColumn;
             var baseStatuses = [];
@@ -800,7 +829,7 @@ function addwar(auth) {
                         }
                     },{
                         "updateCells": {
-                            "rows": [{"values": [{"userEnteredValue": {"numberValue": warSize}}]}],
+                            "rows": [{"values": [{"userEnteredValue": {"numberValue": warSize}}, {"userEnteredValue": {"stringValue": warStartTime}}]}],
                             "fields": "userEnteredValue/stringValue",
                             "range": {
                                 "sheetId": CLAIMS_SHEET_ID,
@@ -838,7 +867,7 @@ function addwar(auth) {
                     bot.sendMessage({
                         to: channelID,
                         message: 'War Log is not public. So lets setup the roster!'
-                    });                    
+                    });
                     setupWarRosterForPrivateWarlog(auth, channelID, warSize);
                 }
             });
@@ -947,6 +976,7 @@ function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
                         return;
                     }
                     var duration = moment.duration(warStartTime.diff(moment()));
+                    checkAndStartWarNotificationThread(auth, clanTag);
                     var startsIn = duration.hours() + "hrs " + duration.minutes() + "mins ";
                     bot.sendMessage({
                         to: channelID,
@@ -1149,6 +1179,7 @@ function confirmRoster(auth) {
                     to: channelID,
                     message: 'Ok, Roster locked down. Good luck in War!'
                 });
+                checkAndStartWarNotificationThread(auth, getClanTagFromChannel(channelID));
             });
         });
     });

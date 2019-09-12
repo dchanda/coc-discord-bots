@@ -54,13 +54,16 @@ setTimeout(function() {
     authorize(googleCredentials, checkClaims);
 }, 240000);
 
-for(clanTag in CLAN_FAMILY) {
-    scheduleWarLogUpdater(30000, clanTag);
-    //Start a notification thread for war start time for each clan after 10secs.
-    setTimeout(function() {
-        authorize(googleCredentials, checkAndStartWarNotificationThread.bind({clanTag: clanTag}));
-    }, 10000);
-}
+setTimeout(function() {
+    authorize(googleCredentials, function(auth) {
+        for(clanTag in CLAN_FAMILY) {
+            //Start a timer to update war log ever 30secs initially.
+            scheduleWarLogUpdater(30000, clanTag);
+            //Start a notification thread for war start time for each clan.
+            checkAndStartWarNotificationThread(auth, clanTag);
+        }
+    });
+}, 10000);
 
 //Refersh Clan Tag every 1 hr.
 opponentClanTagUpdater = setInterval( function() {
@@ -430,7 +433,8 @@ function checkAndStartWarNotificationThread(auth, clanTag) {
         if (res.data.values && res.data.values.length > 0 && res.data.values[0] && res.data.values[0][0])
             startTimeStr = res.data.values[0][0];
         if (startTimeStr != null) {
-            var startTime = moment(startTimeStr);
+            // startTimeStr = startTimeStr.slice(0, -5);
+            var startTime = moment(startTimeStr, 'YYYYMMDDTHHmmss.SSSZ');
             //var duration = startTime.diff(moment(), 'milliseconds');
             warNotification(startTime, clanTag);
         }
@@ -753,7 +757,7 @@ function addwar(auth) {
                 }
                 var warStartTime = moment();
                 warStartTime.add(timeToBeAdded, 'minutes');
-                warStartTime = warStartTime.format('YYYYMMDDTHHmmss') + '.000Z';
+                warStartTime = warStartTime.format('YYYYMMDDTHHmmss.SSSZ');
             }
 
             var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;

@@ -1207,8 +1207,16 @@ function updateRoster(auth) {
     if (args.length <= 2 && isNaN(parseInt(args[0]))) {
         //This probably is a player instead of index.
         var rosterIdx = 0;
-        if (args.length > 1) rosterIdx = parseInt(args[1]);
-        else {
+        if (args.length > 1) {
+            rosterIdx = parseInt(args[1]);
+            if (isNaN(rosterIdx)) {
+                bot.sendMessage({
+                    to: channelID,
+                    message: "To add a player: !in <playername> <index - position in roster>"
+                })
+                return;
+            }
+        } else {
             bot.sendMessage({
                 to: channelID,
                 message: "To add a player: !in <playername> <index>"
@@ -1220,7 +1228,7 @@ function updateRoster(auth) {
             range: MASTER_ROSTER_SHEET +'!A2:E' + MAX_ROWS,
         }, (err, res) => {
             var playerData = res.data.values;
-            var idx = search2D(playerData, 1, idxStr);
+            var idx = search2D(playerData, 1, args[0]);
             if (idx != -1) {
                 negotiation.members.splice(rosterIdx, 0, {
                     name: playerData[idx][1], 

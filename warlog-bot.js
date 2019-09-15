@@ -152,6 +152,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, unclaim.bind({'channelID': channelID, 'args': args}));
                 break;
+            case 'a':
             case 'attack':
                 if (isPrivileged(userID, channelID, cmd))
                     authorize(googleCredentials, attack.bind({'channelID': channelID, 'args': args}));

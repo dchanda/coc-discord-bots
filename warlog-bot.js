@@ -1663,7 +1663,7 @@ function summary(auth) {
         const warlog = res.data.valueRanges[1].values;
         const opponentLog = res.data.valueRanges[2].values;
         const warSize = res.data.valueRanges[3].values[0][0];
-        const warStartTimeStr = res.data.valuesRanges[4].values[0][0];
+        const warStartTimeStr = res.data.valueRanges[4].values[0][0];
         const warStartTime = moment(warStartTimeStr, 'YYYYMMDDTHHmmss.SSSZ');
         var attacksRemainingCount = 0;
         var attacksRemaining = '';

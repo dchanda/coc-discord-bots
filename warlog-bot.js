@@ -474,6 +474,12 @@ function warNotification(startTime, clanTag) {
             clanTag: clanTag,
             message: "⚔ War ending in 1hr. Get your attacks in! ⚔"
         }), ONE_HOUR*23+duration);
+    } else if (ONE_HOUR*24+duration > 0) {
+        setTimeout(warNotification.bind({
+            startTime: startTime,
+            clanTag: clanTag,
+            message: "⚔ War has ended ⚔"
+        }), ONE_HOUR*24+duration);
     }
 }
 

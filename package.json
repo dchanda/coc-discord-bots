@@ -6,6 +6,8 @@
   "author": "Chanda",
   "dependencies": {
     "axios": "^0.19.0",
+    "canvas": "^2.6.0",
+    "chartjs-node": "^1.7.1",
     "cheerio": "^1.0.0-rc.3",
     "date-arithmetic": "^3.1.0",
     "discord.io": "https://github.com/woor/discord.io/tarball/gateway_v6",

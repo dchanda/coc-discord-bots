@@ -1643,7 +1643,13 @@ function summary(auth) {
 
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [warsheet+'!A5:A'+MAX_ROWS, warsheet+'!G5:H'+MAX_ROWS, CLAIMS+'!'+baseStatusColumn+'4:'+baseStatusColumn+'54', CLAIMS+'!'+baseStatusColumn+'2']
+        ranges: [
+            warsheet+'!A5:A'+MAX_ROWS, 
+            warsheet+'!G5:H'+MAX_ROWS, 
+            CLAIMS+'!'+baseStatusColumn+'4:'+baseStatusColumn+'54', 
+            CLAIMS+'!'+baseStatusColumn+'2',
+            CLAIMS+'!'+baseStatusColumn+'3',
+        ]
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -1657,6 +1663,8 @@ function summary(auth) {
         const warlog = res.data.valueRanges[1].values;
         const opponentLog = res.data.valueRanges[2].values;
         const warSize = res.data.valueRanges[3].values[0][0];
+        const warStartTimeStr = res.data.valuesRanges[4].values[0][0];
+        const warStartTime = moment(warStartTimeStr, 'YYYYMMDDTHHmmss.SSSZ');
         var attacksRemainingCount = 0;
         var attacksRemaining = '';
         if (warlog) {
@@ -1698,7 +1706,13 @@ function summary(auth) {
                 }
             }
         } else {
-            basesRemaining = 'All bases are open! Looks like war hasn\'t started yet!'
+            var duration = warStartTime.diff(moment(), 'milliseconds');
+            if (duration > 0) {
+                var mDuration = moment.duration(now.diff(joinDate));
+                basesRemaining = 'War starts in ' + duration.hours() + 'hrs ' + duration.minutes() + 'mins.';
+            } else {
+                basesRemaining = 'All bases are open!'
+            }
         }
         if (!detail)
             attacksRemaining = '';

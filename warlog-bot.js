@@ -1708,8 +1708,8 @@ function summary(auth) {
         } else {
             var duration = warStartTime.diff(moment(), 'milliseconds');
             if (duration > 0) {
-                var mDuration = moment.duration(now.diff(joinDate));
-                basesRemaining = 'War starts in ' + duration.hours() + 'hrs ' + duration.minutes() + 'mins.';
+                var mDuration = moment.duration(warStartTime.diff(moment()));
+                basesRemaining = 'War starts in ' + mDuration.hours() + 'hrs ' + mDuration.minutes() + 'mins.';
             } else {
                 basesRemaining = 'All bases are open!'
             }

@@ -1526,11 +1526,14 @@ function notify(auth) {
 
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
-        ranges: [warsheet+'!A5:A'+MAX_ROWS, 
-                 warsheet+'!D5:D'+MAX_ROWS, 
-                 warsheet+'!E5:E'+MAX_ROWS, 
-                 warsheet+'!G5:H'+MAX_ROWS, 
-                 CLAIMS+'!'+EXCLUSION_COLUMN+'2:'+EXCLUSION_COLUMN+'52']
+        ranges: [
+            warsheet+'!A5:A'+MAX_ROWS, 
+            warsheet+'!D5:D'+MAX_ROWS, 
+            warsheet+'!E5:E'+MAX_ROWS, 
+            warsheet+'!G5:H'+MAX_ROWS,
+            ROSTER+'!B2:B'+MAX_ROWS,
+            ROSTER+'!H2:H'+MAX_ROWS
+        ]
     }, (err, res) => { 
         if (err) {
             logger.warn('The Google API returned an error: ' + err);
@@ -1544,13 +1547,23 @@ function notify(auth) {
         const discordIds = res.data.valueRanges[1].values;
         const claims = res.data.valueRanges[2].values;
         const warlog = res.data.valueRanges[3].values;
-        const exclusionList = res.data.valueRanges[4].values;
+        const excludeNotifications = new Set();
+        //Build a set of names who wont get notifications.
+        for (var i=0; i<res.data.valueRanges[4].values.length; i++) {
+            var nameRow = res.data.valueRanges[4].values[i];
+            if (res.data.valueRanges[5].values.length>i &&
+                res.data.valueRanges[5].values[i] &&
+                res.data.valueRanges[5].values[i].length>0 &&
+                res.data.valueRanges[5].values[i][0] == 'X') {
+                excludeNotifications.add(nameRow[0].toLowerCase());
+            }
+        }
 
         var twoAttacksRemainingList = [];
         var oneAttackRemainingList = [];
 
         for(var i=0; i<warlog.length; i++) {
-            if (search2D(exclusionList, 0, playerNames[i][0]) > -1) {
+            if (excludeNotifications.has(playerNames[i][0].toLowerCase())) {
                 continue;
             }
             var attacksRemainingForThisPlayer = 0;

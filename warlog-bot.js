@@ -1690,6 +1690,7 @@ function summary(auth) {
         }
         attacksRemaining = '```fix\nAttacks Remaining: ' + attacksRemainingCount + '       \n\n' + attacksRemaining + '```';
         var basesRemaining = '';
+        var duration = warStartTime.diff(moment(), 'milliseconds');
         if (opponentLog) {
             for(var i=0; i<warSize; i++) {
                 var baseStr = (i<=8) ? '     '+(i+1) : '    '+(i+1);
@@ -1705,8 +1706,8 @@ function summary(auth) {
                     basesRemaining += '' + baseStr + '  -  None\n';
                 }
             }
+            if (basesRemaining == '') basesRemaining = "All bases are 3 starred!"
         } else {
-            var duration = warStartTime.diff(moment(), 'milliseconds');
             if (duration > 0) {
                 var mDuration = moment.duration(warStartTime.diff(moment()));
                 basesRemaining = 'War starts in ' + mDuration.hours() + 'hrs ' + mDuration.minutes() + 'mins.';
@@ -1716,7 +1717,11 @@ function summary(auth) {
         }
         if (!detail)
             attacksRemaining = '';
-
+        if (duration < 0) {
+            warStartTime.add(24, 'hours');
+            var mDuration = moment.duration(warStartTime.diff(moment()));
+            basesRemaining = 'War ends in ' + mDuration.hours() + 'hrs ' + mDuration.minutes() + 'mins.\n\n' + basesRemaining;
+        }
         bot.sendMessage({
             to: channelID,
             embed: {

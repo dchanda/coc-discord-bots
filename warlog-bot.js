@@ -985,7 +985,7 @@ function setupWarRosterForPublicWarlog(auth, channelID, clanTag) {
                         return;
                     }
                     var duration = moment.duration(warStartTime.diff(moment()));
-                    checkAndStartWarNotificationThread(auth, clanTag);
+                    checkAndStartWarNotificationThread(auth, getClanTagFromChannel(channelID));
                     var startsIn = duration.hours() + "hrs " + duration.minutes() + "mins ";
                     bot.sendMessage({
                         to: channelID,

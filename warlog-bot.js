@@ -21,6 +21,7 @@ const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const STAR_EMPTY = '☆'; 
 const STAR_FULL = '⭐'; 
 const THUMBSUP = '👍';
+const ROSTER='ROSTER';
 const CLAIMS = BOT_CONFIGS.claimsTabName;
 const CLAIMS_SHEET_ID = BOT_CONFIGS.claimsSheetId;
 const CLAN_FAMILY = BOT_CONFIGS.clanFamily;
@@ -123,6 +124,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'adhelp':
                 help(channelID);
+                break;
+            case 'details':
+                authorize(googleCredentials, summary.bind({'channelID': channelID, 'detail': false}));
                 break;
             case 'summary':
                 authorize(googleCredentials, summary.bind({'channelID': channelID, 'detail': false}));
@@ -505,6 +509,9 @@ function help(channelID) {
             }, {
                 name: '!adhelp',
                 value: 'I prefer you use this instead of simply calling for help!'
+            }, {
+                name: '!details',
+                value: 'Provides War Member attack details!'
             }, {
                 name: '!summary',
                 value: 'Provides a short War Summary. If output is not to your liking, check with @Mac!'

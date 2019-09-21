@@ -296,12 +296,15 @@ function cacheResearchData() {
 function checkClanJoinDates() {
     var today = moment(new Date());
     //Check 6 month anniversary
-    if (today.isAfter(CLAN_BIRTHDAY.add(180, 'D')) && today.isBefore(CLAN_BIRTHDAY.add(181, 'D'))) {
+    if (today.date() == CLAN_BIRTHDAY.date()) {
+        var anniversaryMonths = today.diff(CLAN_BIRTHDAY, "months");
+        var msg = ':tada: @everyone, Congratulations on ' + anniversaryMonths + ' Month Anniversary! Good going! :tada:';
         bot.sendMessage({
             to: BOT_ANNOUNCE_CHANNELID,
-            message: '@everyone, Congratulations on 6 Month Anniversary! Good going!'
+            message: msg
         });
     }
+
     var message_parts = [];
     models.PlayerData.findAll().then(currentMembers => {
         var message = '';
@@ -311,8 +314,25 @@ function checkClanJoinDates() {
             if (!member.inClan) return;
             var joinDate = moment(member.joinDate);
             var duration = moment.duration(now.diff(joinDate));
-            if (duration.months() > 0 && duration.days() == 0) {
-                message += `:tada: ** ${member.name} ** \`completed ${duration.months()}months with us today!\`\n`;
+            if (duration.days() == 0) {
+                if (duration.years() > 0) {
+                    if (duration.years() > 1)
+                        message += `:tada: ** ${member.name} ** \`completed ${duration.years()}years`;
+                    else 
+                        message += `:tada: ** ${member.name} ** \`completed ${duration.years()}year`;
+                    if (duration.months() > 1) {
+                        message += ` ${duration.months()}months`;
+                    } else if (duration.months() > 0)
+                        message += ` ${duration.months()}month`;
+                    message += " with us today! `\n";
+                } else if (duration.months() > 0) {
+                    message += ":tada: ** ${member.name} ** \`completed";
+                    if (duration.months() > 1) {
+                        message += ` ${duration.months()}months`;
+                    } else 
+                        message += ` ${duration.months()}month`;
+                    message += " with us today! `\n";
+                }                
             }
             if ( (message.match(/\n/g) || []).length > 30 ) {
                 message_parts.push(message);

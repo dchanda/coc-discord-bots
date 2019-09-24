@@ -1329,7 +1329,7 @@ setInterval(function() {
     command = botSendCommandQueue.dequeue();
     if (command) {
         bot.sendMessage(command.input, command.callback);
-        logger.info("Pending Send Messageg Commands: " + botSendCommandQueue.getLength());
+        logger.info("Pending Send Messages Commands: " + botSendCommandQueue.getLength());
     } else {
         if (POLL_STARTED) {
             bot.sendMessage({
@@ -1579,7 +1579,6 @@ function uploadcwldata() {
 
 
 function purgeCwlPoll(channelID, messageID) {
-    PURGE_STARTED = true;
     if (channelID) {
         models.CwlRsvp.findOne({where: {secondquestion: messageID, channelid: channelID}}).then(cwlRsvp => {
             if (!cwlRsvp) return;
@@ -1587,6 +1586,7 @@ function purgeCwlPoll(channelID, messageID) {
             deleteQueue.enqueue({channelID: channelID, messageID: cwlRsvp.secondquestion});
         });                        
     } else {
+        PURGE_STARTED = true;
         models.CwlRsvp.findAll().then( cwlRsvps => {
             cwlRsvps.forEach(cwlRsvp => {
                 var channelID = cwlRsvp.channelid;

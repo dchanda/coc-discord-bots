@@ -201,7 +201,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
                     memberDate(channelID, args);
                 break;
-            case 'cwlcheck':
+            case 'cwlpoll':
                 if (PRIVILEGED_MEMBERS.has(userID))
                     authorize(googleCredentials, cwlcheck);
                 break;
@@ -1287,7 +1287,7 @@ const PLAYER_TAG_COL = 0;
 const NAME_COL = 1;
 const DISCORD_ID_COL = 3;
 
-function cwlcheck(auth) {
+function cwlpoll(auth) {
     const sheets = google.sheets({version: 'v4', auth});
 
     sheets.spreadsheets.values.get({
@@ -1318,24 +1318,35 @@ function cwlcheck(auth) {
 const botSendCommandQueue = new Queue();
 const botReactionCommandQueue = new Queue();
 const watchedMessageIds = new Set();
+const deleteQueue = new Queue();
 
-//Dequeue sendCommands - Once every 20secs.
-// setInterval(function() {
-//     command = botSendCommandQueue.dequeue();
-//     if (command) {
-//         bot.sendMessage(command.input, command.callback);
-//         console.log("Pending SendCommands: " + botSendCommandQueue.getLength());
-//     }
-// }, 15000);
+//Dequeue sendCommands - Once every 15secs.
+setInterval(function() {
+    command = botSendCommandQueue.dequeue();
+    if (command) {
+        bot.sendMessage(command.input, command.callback);
+        logger.info("Pending Send Messageg Commands: " + botSendCommandQueue.getLength());
+    }
+}, 15000);
 
+//Dequeue reaction command - once every second
+setInterval(function() {
+    command = botReactionCommandQueue.dequeue();
+    if (command) {
+        bot.addReaction(command.input);
+        console.log("Pending Reaction Commands: " + botReactionCommandQueue.getLength());
+    }
+}, 1000);
 
-// setInterval(function() {
-//     command = botReactionCommandQueue.dequeue();
-//     if (command) {
-//         bot.addReaction(command.input);
-//         console.log("Pending Reaction Commands: " + botReactionCommandQueue.getLength());
-//     }
-// }, 1000);
+//Dequeue Delete Command - once every 1.5 secs
+setInterval(function() {
+    var input = deleteQueue.dequeue();
+    if (input) {
+        bot.deleteMessage(input);
+        console.log("Pending : " + deleteQueue.getLength());
+    }
+}, 1500);
+
 
 function firstMessage(discordUserId, name, playerTag, townhallLevel) {
     var playerStr = name+'-('+playerTag+')-TH'+townhallLevel;
@@ -1343,7 +1354,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel) {
         to: discordUserId,
         embed: {
             color: 13683174,
-            description: 'CWL for September is starting on the 1st of September.',
+            description: 'CWL for October is starting on the 1st of October.',
             footer: { 
                 text: '© Almost Divorced Clan'
             },
@@ -1352,7 +1363,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel) {
             },
             title: '  ⚔ Clan War Leagues ⚔  RSVP',
             fields: [{
-                name: 'First Battle Day is Sep-2',
+                name: 'First Battle Day is October 2nd',
                 value: '`⚔`'
             }, {
                 name: 'Will   '+playerStr+'   be participating?',
@@ -1496,6 +1507,7 @@ function uploadcwldata() {
                 }); 
 
                 var tags = [];
+                var daysAttending = [];
                 cwldata = cwldata.sort( (data1, data2) => {
                     // if (data1.townhallLevel == data2.townhallLevel)
                     //     return data1.tag > data2.tag;
@@ -1503,10 +1515,22 @@ function uploadcwldata() {
                 });
                 cwldata.forEach( cwldataobj => {
                     tags.push([cwldataobj.rsvp, cwldataobj.days, cwldataobj.tag]);
+                    var daysAttendingRow = ['Q','Q','Q','Q','Q','Q','Q']
+                    if (cwldataobj.days.indexOf('A') < 0) {
+                        if (cwldataobj.days.indexOf('1') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('2') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('3') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('4') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('5') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('6') < 0) daysAttendingRow[0] = "";
+                        if (cwldataobj.days.indexOf('7') < 0) daysAttendingRow[0] = "";
+                    }
+                    daysAttending.push(daysAttendingRow);
                 });
 
                 var cwlUpdateData = [];
                 cwlUpdateData.push({range: 'CWL LIST!A5:C' + tags.length+5, values: tags});
+                cwlUpdateData.push({range: 'CWL LIST!F5:L' + tags.length+5, values: daysAttending});
 
                 sheets.spreadsheets.values.batchUpdate({
                     spreadsheetId: SPREADSHEET_ID,
@@ -1527,19 +1551,10 @@ function uploadcwldata() {
     });
 }
 
-var deleteQueue = new Queue();
-
-// setInterval(function() {
-//     var input = deleteQueue.dequeue();
-//     if (input) {
-//         bot.deleteMessage(input);
-//         console.log("Pending : " + deleteQueue.getLength());
-//     }
-// }, 1500);
 
 function purgeCwlPoll(channelID, messageID) {
     if (channelID) {
-        models.CwlRsvp.findOne({where: {secondquestionanswer: messageID, channelid: channelID}}).then(cwlRsvp => {
+        models.CwlRsvp.findOne({where: {secondquestion: messageID, channelid: channelID}}).then(cwlRsvp => {
             if (!cwlRsvp) return;
             deleteQueue.enqueue({channelID: channelID, messageID: cwlRsvp.firstquestion});
             deleteQueue.enqueue({channelID: channelID, messageID: cwlRsvp.secondquestion});

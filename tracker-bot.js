@@ -135,9 +135,9 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         checkNewMembers();
     }, 60000);
-    // setInterval(function() {
-    //     uploadcwldata();
-    // }, 300000);
+    setInterval(function() {
+        uploadcwldata();
+    }, 300000);
     setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
@@ -203,13 +203,13 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'cwlpoll':
                 if (PRIVILEGED_MEMBERS.has(userID))
-                    authorize(googleCredentials, cwlcheck);
+                    authorize(googleCredentials, cwlpoll);
                 break;
             case 'uploadcwldata':
                 if (PRIVILEGED_MEMBERS.has(userID))
-                    authorize(googleCredentials, uploadcwldata);
+                    uploadcwldata();
                 break;
-            case 'purgedms':
+            case 'purgecwlpoll':
                 if (PRIVILEGED_MEMBERS.has(userID))
                     if (args.length > 0)
                         purgeCwlPoll(args[0]);
@@ -1290,6 +1290,8 @@ const DISCORD_ID_COL = 3;
 function cwlpoll(auth) {
     const sheets = google.sheets({version: 'v4', auth});
 
+    POLL_STARTED = true;
+
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: 'ROSTER!A2:I150',
@@ -1319,6 +1321,8 @@ const botSendCommandQueue = new Queue();
 const botReactionCommandQueue = new Queue();
 const watchedMessageIds = new Set();
 const deleteQueue = new Queue();
+var POLL_STARTED = false;
+var PURGE_STARTED = false;
 
 //Dequeue sendCommands - Once every 15secs.
 setInterval(function() {
@@ -1326,7 +1330,16 @@ setInterval(function() {
     if (command) {
         bot.sendMessage(command.input, command.callback);
         logger.info("Pending Send Messageg Commands: " + botSendCommandQueue.getLength());
+    } else {
+        if (POLL_STARTED) {
+            bot.sendMessage({
+                to: BOT_ANNOUNCE_CHANNELID,
+                message: 'Finished sending CWL Poll DMs.'
+            });
+        }
+        POLL_STARTED = false;
     }
+
 }, 15000);
 
 //Dequeue reaction command - once every second
@@ -1344,6 +1357,14 @@ setInterval(function() {
     if (input) {
         bot.deleteMessage(input);
         console.log("Pending : " + deleteQueue.getLength());
+    } else {
+        if (PURGE_STARTED) {
+            bot.sendMessage({
+                to: BOT_ANNOUNCE_CHANNELID,
+                message: 'Finished purging of CWL Poll DMs.'
+            });
+        } 
+        PURGE_STARTED = false;
     }
 }, 1500);
 
@@ -1515,16 +1536,21 @@ function uploadcwldata() {
                 });
                 cwldata.forEach( cwldataobj => {
                     tags.push([cwldataobj.rsvp, cwldataobj.days, cwldataobj.tag]);
-                    var daysAttendingRow = ['Q','Q','Q','Q','Q','Q','Q']
-                    if (cwldataobj.days.indexOf('A') < 0) {
-                        if (cwldataobj.days.indexOf('1') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('2') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('3') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('4') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('5') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('6') < 0) daysAttendingRow[0] = "";
-                        if (cwldataobj.days.indexOf('7') < 0) daysAttendingRow[0] = "";
+                    var daysAttendingRow = ['Q','Q','Q','Q','Q','Q','Q'];
+                    if (cwldataobj.rsvp == 'N') {
+                        daysAttendingRow = ['-','-','-','-','-','-','-'];
+                    } else {
+                        if (cwldataobj.days.indexOf('A') < 0) {
+                            if (cwldataobj.days.indexOf('1') < 0) daysAttendingRow[0] = "-";
+                            if (cwldataobj.days.indexOf('2') < 0) daysAttendingRow[1] = "-";
+                            if (cwldataobj.days.indexOf('3') < 0) daysAttendingRow[2] = "-";
+                            if (cwldataobj.days.indexOf('4') < 0) daysAttendingRow[3] = "-";
+                            if (cwldataobj.days.indexOf('5') < 0) daysAttendingRow[4] = "-";
+                            if (cwldataobj.days.indexOf('6') < 0) daysAttendingRow[5] = "-";
+                            if (cwldataobj.days.indexOf('7') < 0) daysAttendingRow[6] = "-";
+                        }                        
                     }
+
                     daysAttending.push(daysAttendingRow);
                 });
 
@@ -1553,6 +1579,7 @@ function uploadcwldata() {
 
 
 function purgeCwlPoll(channelID, messageID) {
+    PURGE_STARTED = true;
     if (channelID) {
         models.CwlRsvp.findOne({where: {secondquestion: messageID, channelid: channelID}}).then(cwlRsvp => {
             if (!cwlRsvp) return;

@@ -313,6 +313,10 @@ function _updateWarLog(err, attackSummary) {
             logger.info('War log is not public. Changing the update interval to 1hr. "' + clanTag + '"');
             scheduleWarLogUpdater(ONE_HOUR, clanTag);
             return;
+        } else if (err.code == 1000) {
+            logger.info('War ended for clan ":' + clanTag + '"');
+            attackSummary = err.attackSummary;
+            CLAN_FAMILY[clanTag].opponentClanTag = 'X';
         } else {
             logger.info('Error while fetching war log: ' + err);
             return;
@@ -753,6 +757,7 @@ function addwar(auth) {
             }
             //20190911T173250.000Z
             var warStartTime = "";
+            clanFamilyPrefs["opponentClanTag"] = 'X';
             if (!clanInfo.isWarLogPublic && startsIn==null) {
                 bot.sendMessage({
                     to: channelID,

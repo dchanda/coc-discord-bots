@@ -138,7 +138,7 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         uploadcwldata();
     }, 300000);
-    setTimeout(announceUpgrades, 2000);
+    //setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
 });
@@ -326,7 +326,7 @@ function checkClanJoinDates() {
                         message += ` ${duration.months()}month`;
                     message += " with us today! `\n";
                 } else if (duration.months() > 0) {
-                    message += ":tada: ** ${member.name} ** \`completed";
+                    message += `:tada: ** ${member.name} ** \`completed`;
                     if (duration.months() > 1) {
                         message += ` ${duration.months()}months`;
                     } else 
@@ -1532,7 +1532,7 @@ function uploadcwldata() {
                 cwldata = cwldata.sort( (data1, data2) => {
                     // if (data1.townhallLevel == data2.townhallLevel)
                     //     return data1.tag > data2.tag;
-                    return data1.townhallLevel - data2.townhallLevel;
+                    return (data2.townhallLevel - data1.townhallLevel);
                 });
                 cwldata.forEach( cwldataobj => {
                     tags.push([cwldataobj.rsvp, cwldataobj.days, cwldataobj.tag]);

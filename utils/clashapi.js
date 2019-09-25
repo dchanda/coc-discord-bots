@@ -262,7 +262,7 @@ function getAttackSummary(clanTag, opponentClanTag, callback) {
         
         var warEndTime = moment(responseJson.endTime);
         var now = moment();
-        if (responseJson.state != 'inWar') {
+        if (responseJson.state == 'preparation') {
             logger.info('War is in Preparation Phase. No attacks yet!');
             callback({
                 message: 'Preperation Phase',
@@ -301,7 +301,15 @@ function getAttackSummary(clanTag, opponentClanTag, callback) {
             }
         });
 
-        callback(null, attackSummary);
+        if (responseJson.state == 'warEnded') {
+            callback({
+                message: 'War Ended',
+                code: 1000,
+                startTime: moment(responseJson.startTime),
+                attackSummary: attackSummary,
+            }, null);
+        } else 
+            callback(null, attackSummary);
     });
 }
 

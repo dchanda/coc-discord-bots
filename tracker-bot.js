@@ -81,7 +81,8 @@ const SPELL_NAMES = {
 
 const CLAN_NAMES = {
     "#22V9VC28V": "Almost Divorced",
-    "#29829QQCY": "Mostly Divorced"
+    "#29829QQCY": "Mostly Divorced",
+    "#2PYQLRJY8": "Nearly  Divorced"
 }
 
 

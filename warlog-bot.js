@@ -2251,7 +2251,7 @@ function checkClaimsForClan(auth, clanFamilyPrefs, reschedule) {
             const claimTimes = res.data.valueRanges[3].values;
             var attacksRemaining = 0;
             var message = '';
-            if (playerNames.length) {
+            if (playerNames && playerNames.length>0) {
                 let now = new Date();
                 for(let i=0; i<playerNames.length; i++) {
                     if (playerClaims!= undefined && playerClaims[i] != undefined 

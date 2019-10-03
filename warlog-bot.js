@@ -67,9 +67,9 @@ setTimeout(function() {
 }, 10000);
 
 //Refersh Clan Tag every 1 hr.
-opponentClanTagUpdater = setInterval( function() {
-    opponentClanTag = null;
-}, 3600000);
+// opponentClanTagUpdater = setInterval( function() {
+//     opponentClanTag = null;
+// }, 3600000);
 
 // Initialize Discord Bot
 var bot = new Discord.Client({
@@ -574,8 +574,8 @@ function startCWLThread(clanTag, auth) {
     if (!("cwlInterval" in clanFamilyPrefs) || clanFamilyPrefs.cwlInterval==null) {
         clanFamilyPrefs["cwlInterval"] = setInterval(function() {
             authorize(googleCredentials, fetchAndUpdateCWLLog.bind({clanTag: clanTag}));
-        }, ONE_MIN*2);
-        logger.debug("Scheduled CWL Log updater thread for '" + clanTag + "'");
+        }, ONE_MIN);
+        logger.info("Scheduled CWL Log updater thread for '" + clanTag + "'");
     }
 }
 
@@ -599,20 +599,21 @@ function fetchAndUpdateCWLLog(auth) {
 
     var round = clanFamilyPrefs.round;
     if (clanFamilyPrefs.cwlWarTag == null) {
-        clashapi.getCWLWarTag(clanTag, clanFamilyPrefs.round, function(err, warTag) {
+        clashapi.getCWLWarTag(clanTag, clanFamilyPrefs.round, function(err, warTagAndName) {
             if (err) {
                 if (err.code = 901) {
                     clanFamilyPrefs.round = clanFamilyPrefs.round-1;
                 }
                 return;
             }
-            clanFamilyPrefs.cwlWarTag = warTag;
+            clanFamilyPrefs.cwlWarTag = warTagAndName.warTag;
+            if (warTagAndName.state == 'preparation' || warTagAndName.state == 'inWar') warTagAndName.state = 'P';
             sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'CWL!' + String.fromCharCode(67+round)+clanFamilyPrefs.cwlWarTagRow,
+                range: 'CWL!' + String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow-1) + ':'+ String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow),
                 valueInputOption: 'USER_ENTERED',
                 resource: {
-                    values: [[warTag]]
+                    values: [[warTagAndName.name],[warTagAndName.state]]
                 }
             }, (err, res) => {
                 if (err) {
@@ -635,31 +636,47 @@ function _updateCWLLog(sheets, clanTag) {
             console.log(err);
             return;
         }
+        var result = 'P';
         if (cwlWarData.state == "warEnded") {
             if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag);}
             clanFamilyPrefs.round = clanFamilyPrefs.round+1;
             clanFamilyPrefs.cwlWarTag = null;
+            var stars1 = warResponseJson.clan.stars;
+            var stars2 = warResponseJson.opponent.stars;
+            var destruction1 = warResponseJson.clan.destructionPercentage;
+            var destruction2 = warResponseJson.opponent.destructionPercentage;
+            if (stars1 > stars2) result = 'W';
+            else if (stars2 > stars1) result = 'L';
+            else {
+                if (destruction1 > destruction2) result = 'W';
+                else if (destruction2 > destruction1) result = 'L';
+                else result = 'D';
+            }
         }
         var members = null;
         if (cwlWarData.clan.tag == clanTag)
             members = cwlWarData.clan.members;
-        else 
+        else {
             members = cwlWarData.opponent.members;
+            if (result == 'L') result = 'W';
+            else if (result == 'W') result = 'L';
+        }
+        //Get Player Tags in CWL for updating scores.
         sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'CWL!C' + (clanFamilyPrefs.cwlWarTagRow+2) + ':J80',
+            range: 'CWL!B' + (clanFamilyPrefs.cwlWarTagRow+2) + ':L' + (clanFamilyPrefs.cwlWarTagRow+25),
         }, (err, res) => {
             if (err) {
                 console.log(err);
                 return;
             }
-            var updateData = [];
+            var scoresArray = [];
             var sheetCWLData = res.data.values;
 
             var memberCount = 0;
             while(true) {
-                if (sheetCWLData[memberCount] && sheetCWLData[memberCount][round])
-                    updateData.push([sheetCWLData[memberCount][round]]);
+                if (sheetCWLData[memberCount] && sheetCWLData[memberCount][round+3])
+                    scoresArray.push([sheetCWLData[memberCount][round+3]]);
                 else
                     break;
                 memberCount++;
@@ -668,16 +685,25 @@ function _updateCWLLog(sheets, clanTag) {
                 if ("attacks" in member) {
                     var memberIdx = search2D(sheetCWLData, 0, member.tag);
                     var attack = member["attacks"][0];
-                    updateData[memberIdx][0] = attack.stars;
+                    scoresArray[memberIdx][0] = attack.stars;
                 }
             });
-            sheets.spreadsheets.values.update({
+            var updateData = [];
+            updateData.push({range: 'CWL!'+String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow+2)+':'+String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
+                             values: scoresArray });
+            if (result != 'P') {
+                updateData.push({range: 'CWL!'+String.fromCharCode(69+round)+clanFamilyPrefs.cwlWarTagRow, values: result});
+                var claimsData = []
+                for(var i=0;i<memberCount;i++) claimsData.push([""]);
+                updateData.push({range: 'CWL!E'+(clanFamilyPrefs.cwlWarTagRow+2)+':E'+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
+                                 values: claimsData})
+            }
+            sheets.spreadsheets.values.batchUpdate({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'CWL!'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2)+':'+String.fromCharCode(67+round)+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
-                valueInputOption: 'USER_ENTERED',
                 resource: {
-                    values: updateData
-                }                    
+                    data: updateData,
+                    valueInputOption: 'USER_ENTERED'
+                }
             }, (err, res) => {
                 if (err) 
                     console.log(err);
@@ -1536,85 +1562,133 @@ function notify(auth) {
     const clanFamilyPrefs = getPreferencesFromChannel(channelID);
     const warsheet = clanFamilyPrefs.warsheet;
 
-    sheets.spreadsheets.values.batchGet({
-        spreadsheetId: SPREADSHEET_ID,
-        ranges: [
-            warsheet+'!A5:A'+MAX_ROWS, 
-            warsheet+'!D5:D'+MAX_ROWS, 
-            warsheet+'!E5:E'+MAX_ROWS, 
-            warsheet+'!G5:H'+MAX_ROWS,
-            ROSTER+'!B2:B'+MAX_ROWS,
-            ROSTER+'!H2:H'+MAX_ROWS
-        ]
-    }, (err, res) => { 
-        if (err) {
-            logger.warn('The Google API returned an error: ' + err);
-            bot.sendMessage({
-                to: channelID,
-                message: 'Unable to fetch information. Try again later!'
-            });
-            return;
+    if (clanFamilyPrefs.cwlInterval) {
+        var sRow = clanFamilyPrefs.cwlWarTagRow+2;
+        var eRow = clanFamilyPrefs.cwlWarTagRow+25;
+        var round = clanFamilyPrefs.round;
+        sheets.spreadsheets.values.batchGet({
+            spreadsheetId: SPREADSHEET_ID,
+            ranges: [
+                'CWL!B'+sRow + ':B'+eRow,
+                'CWL!E'+sRow + ':E'+eRow,
+                'CWL!' + String.fromCharCode(69+round) +  sRow + ':' + String.fromCharCode(69+round) + eRow,
+                ROSTER+'!A2:A'+MAX_ROWS,
+                ROSTER+'!B2:B'+MAX_ROWS,
+                ROSTER+'!D2:D'+MAX_ROWS,
+                ROSTER+'!H2:H'+MAX_ROWS,
+            ]
+        }, (err, res) => {
+            _notify(err, res, channelID, clanFamilyPrefs, true);
+        });
+    } else {
+        sheets.spreadsheets.values.batchGet({
+            spreadsheetId: SPREADSHEET_ID,
+            ranges: [
+                warsheet+'!B5:B'+MAX_ROWS,
+                warsheet+'!E5:E'+MAX_ROWS, 
+                warsheet+'!G5:H'+MAX_ROWS,
+                ROSTER+'!A2:A'+MAX_ROWS,
+                ROSTER+'!B2:B'+MAX_ROWS,
+                ROSTER+'!D2:D'+MAX_ROWS,
+                ROSTER+'!H2:H'+MAX_ROWS,
+            ]
+        }, (err, res) => {
+            _notify(err, res, channelID, clanFamilyPrefs, false);
+        });        
+    }
+}
+
+function _notify(err, res, channelID, cwl) { 
+    if (err) {
+        logger.warn('The Google API returned an error: ' + err);
+        bot.sendMessage({
+            to: channelID,
+            message: 'Unable to fetch information. Try again later!'
+        });
+        return;
+    }
+    const playerTags = res.data.valueRanges[0].values;
+    const claims = res.data.valueRanges[1].values;
+    const warlog = res.data.valueRanges[2].values;
+    const rosterPlayerTags = res.data.valueRanges[3].values;
+    const rosterNames = res.data.valueRanges[4].values;
+    const rosterDiscordIds = res.data.valueRanges[5].values;
+    const rosterNotifExclOption = res.data.valueRanges[6].values;
+    const playerTagDiscordIdsMap = {};
+    const playerTagNameMap = {};
+    //Build a set of names who wont get notifications.
+    for (var i=0; i<rosterPlayerTags.length; i++) {
+        var rosterPlayerTag = rosterPlayerTags[i][0];
+        
+        if (rosterNotifExclOption.length>i &&
+            rosterNotifExclOption[i] &&
+            rosterNotifExclOption[i].length>0 &&
+            rosterNotifExclOption[i][0] == 'X') {
+            //Dont add the mapping to discord id.
+        } else {
+            if (rosterDiscordIds[i] && rosterDiscordIds[i].length>0 && rosterDiscordIds[i][0]!="")
+                playerTagDiscordIdsMap[rosterPlayerTag] = rosterDiscordIds[i][0];
+            playerTagNameMap[rosterPlayerTag] = rosterNames[i][0];
         }
-        const playerNames = res.data.valueRanges[0].values;
-        const discordIds = res.data.valueRanges[1].values;
-        const claims = res.data.valueRanges[2].values;
-        const warlog = res.data.valueRanges[3].values;
-        const excludeNotifications = new Set();
-        //Build a set of names who wont get notifications.
-        for (var i=0; i<res.data.valueRanges[4].values.length; i++) {
-            var nameRow = res.data.valueRanges[4].values[i];
-            if (res.data.valueRanges[5].values.length>i &&
-                res.data.valueRanges[5].values[i] &&
-                res.data.valueRanges[5].values[i].length>0 &&
-                res.data.valueRanges[5].values[i][0] == 'X') {
-                excludeNotifications.add(nameRow[0].toLowerCase());
-            }
+    }
+
+    var twoAttacksRemainingList = [];
+    var oneAttackRemainingList = [];
+
+    for(var i=0; i<warlog.length; i++) {
+        if (i<playerTags.length && playerTags[i] && playerTags[i][0] && playerTags[i][0]!="") {
+            //Continue with process. Else we reached end for this clan. Break out.
+        } else {
+            break;
+        }
+        var playerTag = playerTags[i][0];
+        if (!(playerTag in playerTagDiscordIdsMap)) {
+            continue;
         }
 
-        var twoAttacksRemainingList = [];
-        var oneAttackRemainingList = [];
-
-        for(var i=0; i<warlog.length; i++) {
-            if (excludeNotifications.has(playerNames[i][0].toLowerCase())) {
-                continue;
-            }
-            var attacksRemainingForThisPlayer = 0;
+        var attacksRemainingForThisPlayer = 0;
+        if (cwl) {
+            if (warlog[i][0] == 'Q')  attacksRemainingForThisPlayer++;
+        } else {
             if (warlog[i][0] == 'XXX') attacksRemainingForThisPlayer++;
-            if (warlog[i][1] == 'XXX') attacksRemainingForThisPlayer++;
-
-            if (attacksRemainingForThisPlayer > 1)
-                twoAttacksRemainingList.push([discordIds[i][0], playerNames[i][0]]);
-            else if (attacksRemainingForThisPlayer > 0) 
-                oneAttackRemainingList.push([discordIds[i][0], playerNames[i][0]]);
+            if (warlog[i][1] == 'XXX') attacksRemainingForThisPlayer++;            
         }
 
-        if (twoAttacksRemainingList.length > 0) {
-            var message = '';
-            twoAttacksRemainingList.forEach( element => {
-                if ( element[0] && element[0] !='' )
-                    message += ' <' + '@' + element[0] + '> ' + element[1];
-            })
-            if (message.length > 1) {
-                message += ' have 2 attacks left in war. Always get both your attacks in.';
-                bot.sendMessage({
-                    to: channelID,
-                    message: message
-                });
-            }
-        }
-        if (oneAttackRemainingList.length > 0) {
-            var message = '';
-            oneAttackRemainingList.forEach( element => {
-                if ( element[0] && element[0] !='' )
-                    message += ' <' + '@' + element[0] + '> ' + element[1];
-            })
-            message += ' You have 1 attack left. Don\'t forget to always use both attacks.';
+        if (attacksRemainingForThisPlayer > 1)
+            twoAttacksRemainingList.push([playerTagDiscordIdsMap[playerTag], playerTagNameMap[playerTag]]);
+        else if (attacksRemainingForThisPlayer > 0) 
+            oneAttackRemainingList.push([playerTagDiscordIdsMap[playerTag], playerTagNameMap[playerTag]]);
+    }
+
+    if (twoAttacksRemainingList.length > 0) {
+        var message = '';
+        twoAttacksRemainingList.forEach( element => {
+            if ( element[0] && element[0] !='' )
+                message += ' <' + '@' + element[0] + '> ' + element[1];
+        })
+        if (message.length > 1) {
+            message += ' have 2 attacks left in war. Always get both your attacks in.';
             bot.sendMessage({
                 to: channelID,
                 message: message
             });
         }
-    });    
+    }
+    if (oneAttackRemainingList.length > 0) {
+        var message = '';
+        oneAttackRemainingList.forEach( element => {
+            if ( element[0] && element[0] !='' )
+                message += ' <' + '@' + element[0] + '> ' + element[1];
+        })
+        if (cwl) {
+            message += ' You still have not attacked on CWL Day-' + clanFamilyPrefs.round + '. Dont forget to use your attacks.'
+        } else 
+            message += ' You have 1 attack left. Don\'t forget to always use both attacks.';
+        bot.sendMessage({
+            to: channelID,
+            message: message
+        });
+    }
 }
 
 function roster(auth) {
@@ -2028,6 +2102,11 @@ function claim(auth) {
     const attacker = args.join(' ');
     const sheets = google.sheets({version: 'v4', auth});
 
+    if (clanFamilyPrefs.cwlInterval) {
+        cwlClaim(auth, channelID, clanFamilyPrefs, target, attacker);
+        return;
+    }
+
     sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: clanFamilyPrefs.warsheet+'!A5:H54',
@@ -2116,14 +2195,8 @@ function claim(auth) {
     });
 }
 
-function search2D(someArray, column, searchString) {
-    if (!someArray) return -1;
-    searchString = searchString.toLowerCase();
-    for(var i=0; i<someArray.length; i++) {
-        if (someArray[i] == undefined || someArray[i][column] == undefined) continue;
-        if (someArray[i][column].toLowerCase() == searchString.toLowerCase()) return i;
-    }
-    return -1;
+function cwlClaim(auth, channelID, clanFamilyPrefs, target, attacker) {
+
 }
 
 function claims(auth) {
@@ -2132,6 +2205,11 @@ function claims(auth) {
     if (clanFamilyPrefs == null) {
         unknownChannelMessage(channelID);
         return ;
+    }
+
+    if (clanFamilyPrefs.cwlInterval) {
+        cwlClaims(auth, channelID, clanFamilyPrefs);
+        return;
     }
 
     const sheets = google.sheets({version: 'v4', auth});
@@ -2188,6 +2266,11 @@ function claims(auth) {
         });
     });
 }
+
+function cwlClaims(auth, channelID, clanFamilyPrefs) {
+
+}
+
 
 function getClaimString(claimTime) {
     var claimTimeStr = '';
@@ -2299,6 +2382,15 @@ function isPrivileged(userID, channelID, cmd, parentClan) {
     return privilegedMembers.includes(userID);
 }
 
+function search2D(someArray, column, searchString) {
+    if (!someArray) return -1;
+    searchString = searchString.toLowerCase();
+    for(var i=0; i<someArray.length; i++) {
+        if (someArray[i] == undefined || someArray[i][column] == undefined) continue;
+        if (someArray[i][column].toLowerCase() == searchString.toLowerCase()) return i;
+    }
+    return -1;
+}
 
 /**
  * Generate a Google auth token and callsback the given the callback function with 

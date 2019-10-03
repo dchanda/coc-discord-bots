@@ -213,10 +213,36 @@ function __checkCWLWarTag(clanTag, warTags, callback) {
             logger.debug('Response : ' + warResponseJson);
             return;
         }
-        if (warResponseJson.clan.tag == clanTag || warResponseJson.opponent.tag == clanTag)
-            callback(null, warTag);
-        else
+        var responseObj = {
+            warTag: warTag, 
+            state: warResponseJson.state,
+            startTime: warResponseJson.startTime,
+        };
+        if (warResponse.state == 'warEnded') {
+            //Calculate win / loss
+            var stars1 = warResponseJson.clan.stars;
+            var stars2 = warResponseJson.opponent.stars;
+            var destruction1 = warResponseJson.clan.destructionPercentage;
+            var destruction2 = warResponseJson.opponent.destructionPercentage;
+            if (stars1 > stars2) responseObj.state = 'W';
+            else if (stars2 > stars1) responseObj.state = 'L';
+            else {
+                if (destruction1 > destruction2) responseObj.state = 'W';
+                else if (destruction2 > destruction1) responseObj.state = 'L';
+                else responseObj.state = 'D';
+            }
+        }
+        if (warResponseJson.clan.tag == clanTag) {
+            responseObj["opponentName"] = warResponseJson.opponent.name;
+            callback(null, responseObj);
+        } else if(warResponseJson.opponent.tag == clanTag) {
+            responseObj["opponentName"] = warResponseJson.clan.name;
+            if (responseObj["state"] == 'W') responseObj["state"] = 'L';
+            else if (responseObj["state"] == 'L') responseObj["state"] = 'W';
+            callback(null, responseObj);
+        } else {
             __checkCWLWarTag(clanTag, warTags, callback);
+        }
     });
 }
 

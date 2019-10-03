@@ -641,10 +641,10 @@ function _updateCWLLog(sheets, clanTag) {
             if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag);}
             clanFamilyPrefs.round = clanFamilyPrefs.round+1;
             clanFamilyPrefs.cwlWarTag = null;
-            var stars1 = warResponseJson.clan.stars;
-            var stars2 = warResponseJson.opponent.stars;
-            var destruction1 = warResponseJson.clan.destructionPercentage;
-            var destruction2 = warResponseJson.opponent.destructionPercentage;
+            var stars1 = cwlWarData.clan.stars;
+            var stars2 = cwlWarData.opponent.stars;
+            var destruction1 = cwlWarData.clan.destructionPercentage;
+            var destruction2 = cwlWarData.opponent.destructionPercentage;
             if (stars1 > stars2) result = 'W';
             else if (stars2 > stars1) result = 'L';
             else {

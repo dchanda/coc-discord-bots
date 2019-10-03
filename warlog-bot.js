@@ -1338,9 +1338,9 @@ function constructRosterMessage(rosterMembers, rosterSize) {
         if (member.inc) count++;
     }
     var format = (count==rosterSize) ? 'CSS' : 'diff';
-    var finallMessage = "```" + format + "\n- Opted in: " + count + "````" + message.join("`\n`") + "`\n```" + format + "\n- Opted in: " + count + "```";
-    logger.debug(finallMessage);
-    return finallMessage;
+    var finalMessage = "```" + format + "\n- Opted in: " + count + "````" + message.join("`\n`") + "`\n```" + format + "\n- Opted in: " + count + "```";
+    logger.debug(finalMessage);
+    return finalMessage;
 }
 
 function endwar(auth) {
@@ -1737,6 +1737,10 @@ function summary(auth) {
         unknownChannelMessage(channelID);
         return;
     }
+    if (clanFamilyPrefs.cwlInterval) {
+        cwlSummary(auth, channelID, clanFamilyPrefs, detail);
+        return;
+    }
     const warsheet = clanFamilyPrefs.warsheet;
     const baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
 
@@ -1836,6 +1840,71 @@ function summary(auth) {
                 url: ''
               }
         });
+    });
+}
+
+function cwlSummary(auth, channelID, clanFamilyPrefs, detail) {
+    const sheets = google.sheets({version: 'v4', auth});
+    const sRow = clanFamilyPrefs.cwlWarTagRow-1;
+    const eRow = clanFamilyPrefs.cwlWarTagRow+27;
+    const round = clanFamilyPrefs.round;
+
+    sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges: [
+            'CWL!C'+sRow + ':L'+eRow 
+        ]
+    }, (err, res) => {
+        var sheetData = res.data.valueRanges[0].values;
+
+        var totalStars = 0;
+        var attacksRemaining = 0;
+        var message = '';
+        for(var i=3; i<sheetData.length; i++) {
+            if (sheetData[i] && sheetData[i].length>0 && sheetData[i][0] && sheetData[i][0]!='') {
+                var score = sheetData[i][2+round];
+                var name = sheetData[i][0];
+                if (score == '-') continue; //Not in this war. (spectator)
+
+                while (name.length < 20) name += ' ';
+                message += name + ' -  ';
+                if (score == 'Q') {
+                    attacksRemaining++;
+                    message +=  'Pending';
+                } else {
+                    var iScore = parseInt(score);
+                    totalStars += iScore;
+                    var stars = '';
+                    while(iScore > 0) {
+                        stars += STAR_FULL;
+                        iScore--;
+                    }
+                    while(stars.length == 0) stars = '⭕';
+                    message += stars;
+                }
+                message += '\n';
+            } else {
+                break;
+            }
+        }
+        var finalMessage = '```fix\nCWL Day - ' + round + ' (' + sheetData[0][2+round] + ')\n\n';
+        finalMessage += 'Attacks Remaining: ' + attacksRemaining + '\n\n';
+        finalMessage += message + '\nScore: ' + totalStars + '```';
+        bot.sendMessage({
+            to: channelID,
+            embed: {
+                color: 13683174,
+                description: finalMessage,
+                footer: { 
+                    text: ''
+                },
+                thumbnail: {
+                    url: ''
+                },
+                title: 'CWL War Summary',
+                url: ''
+            }
+        })
     });
 }
 

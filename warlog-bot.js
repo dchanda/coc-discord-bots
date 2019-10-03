@@ -613,7 +613,7 @@ function fetchAndUpdateCWLLog(auth) {
                 range: 'CWL!' + String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow-1) + ':'+ String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow),
                 valueInputOption: 'USER_ENTERED',
                 resource: {
-                    values: [[warTagAndName.name],[warTagAndName.state]]
+                    values: [[warTagAndName.opponentName],[warTagAndName.state]]
                 }
             }, (err, res) => {
                 if (err) {
@@ -638,7 +638,7 @@ function _updateCWLLog(sheets, clanTag) {
         }
         var result = 'P';
         if (cwlWarData.state == "warEnded") {
-            if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag);}
+            if (clanFamilyPrefs.round >= 7) {endCWLThread(clanTag); return;}
             clanFamilyPrefs.round = clanFamilyPrefs.round+1;
             clanFamilyPrefs.cwlWarTag = null;
             var stars1 = cwlWarData.clan.stars;
@@ -692,11 +692,11 @@ function _updateCWLLog(sheets, clanTag) {
             updateData.push({range: 'CWL!'+String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow+2)+':'+String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
                              values: scoresArray });
             if (result != 'P') {
-                updateData.push({range: 'CWL!'+String.fromCharCode(69+round)+clanFamilyPrefs.cwlWarTagRow, values: result});
-                var claimsData = []
-                for(var i=0;i<memberCount;i++) claimsData.push([""]);
-                updateData.push({range: 'CWL!E'+(clanFamilyPrefs.cwlWarTagRow+2)+':E'+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
-                                 values: claimsData})
+                updateData.push({range: 'CWL!'+String.fromCharCode(69+round)+clanFamilyPrefs.cwlWarTagRow, values: [[result]]});
+//                 var claimsData = []
+//                 for(var i=0;i<memberCount;i++) claimsData.push([""]);
+//                 updateData.push({range: 'CWL!E'+(clanFamilyPrefs.cwlWarTagRow+2)+':E'+(clanFamilyPrefs.cwlWarTagRow+2+memberCount),
+//                                  values: claimsData})
             }
             sheets.spreadsheets.values.batchUpdate({
                 spreadsheetId: SPREADSHEET_ID,

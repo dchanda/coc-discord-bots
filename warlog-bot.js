@@ -607,19 +607,27 @@ function fetchAndUpdateCWLLog(auth) {
                 return;
             }
             clanFamilyPrefs.cwlWarTag = warTagAndName.warTag;
+            var baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
             if (warTagAndName.state == 'preparation' || warTagAndName.state == 'inWar') warTagAndName.state = 'P';
-            sheets.spreadsheets.values.update({
+            sheets.spreadsheets.values.batchUpdate({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'CWL!' + String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow-1) + ':'+ String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow),
-                valueInputOption: 'USER_ENTERED',
                 resource: {
-                    values: [[warTagAndName.opponentName],[warTagAndName.state]]
+                    data: [
+                        {
+                            range: 'CWL!' + String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow-1) + ':'+ String.fromCharCode(69+round)+(clanFamilyPrefs.cwlWarTagRow),
+                            values: [[warTagAndName.opponentName],[warTagAndName.state]]
+                        },
+                        { 
+                            range: 'CLAIMS!' + baseStatusColumn + '3',
+                            values: [[warTagAndName.startTime]]
+                        }
+                    ],
+                    valueInputOption: 'USER_ENTERED'
                 }
             }, (err, res) => {
-                if (err) {
+                if (err) 
                     console.log(err);
-                    return;
-                }
+                return;
             });
             _updateCWLLog(sheets, clanTag);
         });
@@ -1848,14 +1856,20 @@ function cwlSummary(auth, channelID, clanFamilyPrefs, detail) {
     const sRow = clanFamilyPrefs.cwlWarTagRow-1;
     const eRow = clanFamilyPrefs.cwlWarTagRow+27;
     const round = clanFamilyPrefs.round;
+    const baseStatusColumn = clanFamilyPrefs.baseStatusColumn;
 
     sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID,
         ranges: [
-            'CWL!C'+sRow + ':L'+eRow 
+            'CWL!C'+sRow + ':L'+eRow ,
+            CLAIMS+'!'+baseStatusColumn+'3',
         ]
     }, (err, res) => {
         var sheetData = res.data.valueRanges[0].values;
+        const warStartTimeStr = res.data.valueRanges[1].values[0][0];
+        const warStartTime = moment(warStartTimeStr, 'YYYYMMDDTHHmmss.SSSZ');
+        warStartTime.add(24, 'hours');
+        var mDuration = moment.duration(warStartTime.diff(moment()));
 
         var totalStars = 0;
         var attacksRemaining = 0;
@@ -1889,6 +1903,7 @@ function cwlSummary(auth, channelID, clanFamilyPrefs, detail) {
         }
         var finalMessage = '```fix\nCWL Day - ' + round + ' (' + sheetData[0][2+round] + ')\n\n';
         finalMessage += 'Attacks Remaining: ' + attacksRemaining + '\n\n';
+        finalMessage += 'War ends in ' + mDuration.hours() + 'hrs ' + mDuration.minutes() + 'mins.\n\n';
         finalMessage += message + '\nScore: ' + totalStars + '```';
         bot.sendMessage({
             to: channelID,

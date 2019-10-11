@@ -25,9 +25,11 @@ const TOKEN_PATH = process.env.CONFIGS_DIR + '/trackerbot-googletoken.json';
 const CLAN_TAGS = BOT_CONFIGS.clanFamilyTags;
 const ALMOST_DIVORCED_SERVER_ID = BOT_CONFIGS.discordServerId;
 const BOT_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultChannelId;
+const BOT_PRIV_ANNOUNCE_CHANNELID = BOT_CONFIGS.defaultPriviledgeChannelId;
 const MAX_TROOPS = {};
 const MAX_SPELLS = {};
 const MAX_AWAY_DAYS = 15;
+const MAX_ROWS = 150;
 const PRIVILEGED_MEMBERS = new Set();
 
 const MAINTENANCE = BOT_CONFIGS.maintenance;
@@ -85,6 +87,29 @@ const CLAN_NAMES = {
     "#2PYQLRJY8": "Nearly  Divorced"
 }
 
+const traderEmojiMap = {
+    'Wall Rings x5': '<:wallringsx5:631977396777648175>',
+    'Wall Rings x10': '<:wallringsx10:631977396769128488>',
+    'BoH': '<:boh:631972385314045972>',
+    'Hero Potion': '<:heropotion:631972385171439616>',
+    '[FREE] Training Potion': '<:freetrainingpotion:631991959485022257>',
+    'Training Potion': '<:trainingpotion:631972385163313162>',
+    'Rune of Gold': '<:runeofgold:631972385133690890>',
+    'Resource Potion': '<:resourcepotion:631972385104330752>',
+    'Power Potion': '<:powerpotion:631972385041547314>',
+    'Shovel': '<:shovel:631972385033289729>',
+    'Builder Potion': '<:builderpotion:631972385024638976>',
+    'ClockTower Potion': '<:clocktowerpotion:631972384932626468>',
+    '[FREE] ClockTower Potion': '<:freeclocktowerpotion:631991958927048735>',
+    'Rune of Dark Elixir': '<:runeofdarkelixir:631972384840351744>',
+    'BoS': '<:bos:631972384743751682>',
+    'BoB': '<:bob:631972384735232051>',
+    'BoF': '<:bof:631972384790020099>',
+    'Research Potion': '<:researchpotion:631972384618053642>',
+    'Rune of Elixir': '<:runeofelixir:631972384605208577>',
+    'Rune of Builder Gold': '<:runeofbuildergold:631972384588562433>',
+    'Rune of Builder Elixir': '<:runeofbuilderelixir:631972384785694721>'
+}
 
 // ---- GLOBAL VARIABLES -----
 var playersMap = {};
@@ -139,9 +164,10 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         uploadcwldata();
     }, 300000);
-    //setTimeout(announceUpgrades, 2000);
+    setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
+    scheduler.scheduleJob('0 17 * * *', announceTraderCycle);
 });
 
 bot.on('any', function(event) {
@@ -197,6 +223,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 break;
             case 'hero':
                 researchInfo(channelID, args, true);
+                break;
+            case 'trader':
+                announceTraderCycle(channelID);
                 break;
             case 'dates':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -269,6 +298,72 @@ function cacheUserRoles(server) {
                 PRIVILEGED_MEMBERS.add(member.id);
         });
     }
+}
+
+function announceTraderCycle(channelID) {
+    if (arguments.length == 0) {
+        channelID = BOT_PRIV_ANNOUNCE_CHANNELID;
+    }
+    authorize(googleCredentials, (auth) => {
+        const sheets = google.sheets({version: 'v4', auth});
+
+        sheets.spreadsheets.values.batchGet({
+            spreadsheetId: SPREADSHEET_ID,
+            ranges: [
+                'TRADER!A1:E40',
+                'ROSTER!A1:B'+MAX_ROWS,
+                'ROSTER!K1:K'+MAX_ROWS,
+            ]
+        }, (err, res) => {
+            if (err) {
+                console.log(err);
+                return;
+            }
+            const traderData = res.data.valueRanges[0].values;
+            const playerData = res.data.valueRanges[1].values;
+            const playerTraderPositions = res.data.valueRanges[2].values;
+
+            var cycleStartDate = moment(traderData[0][4], 'YYYYMMDDTHHmmss.SSSZ');
+            var duration = moment.duration(moment().diff(cycleStartDate));
+            var step = duration.days();
+            if (duration.hours() > 0 || duration.minutes() > 0 || duration.seconds() > 0) {
+                step += 1;
+            }
+            var message = '\n';
+            var embed = {
+                color: 13683174,
+                description: '',
+                footer: { 
+                    text: '© Almost Divorced Clan'
+                },
+                thumbnail: {
+                    url: ''
+                },
+                title: 'Trader Offers',
+                fields: []
+            }
+            for(var i=1; i<playerData.length; i++) {
+                if (playerData[i].length == 0) break;
+                if (playerTraderPositions.length > i && playerTraderPositions[i] && playerTraderPositions[i].length>0) {
+                    var playerPosition = parseInt(playerTraderPositions[i][0]);
+                    playerPosition += step;
+                    while (playerPosition > 39) playerPosition = playerPosition - 39;
+                    console.log(playerData[i][1] + " : " + playerPosition);
+                    var name = playerData[i][1];
+                    while (name.length < 14) name += ' ';
+                    traderEmojiMap[traderData[playerPosition][1]]
+
+                    message += '`' + name + '` ' + traderEmojiMap[traderData[playerPosition][1]] + '  ' + traderEmojiMap[traderData[playerPosition][2]] + '  ' + traderEmojiMap[traderData[playerPosition][3]] + '\n';
+                }
+            }
+            message += '\n';
+            bot.sendMessage({
+                to: channelID,
+                //to: '631971808639451174',
+                message: message
+            });
+        });
+    });
 }
 
 function cacheMaxLevels() {

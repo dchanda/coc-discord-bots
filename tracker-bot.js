@@ -469,7 +469,7 @@ function researchInfo(channelID, args, heroes) {
     if (args.length > 0) {
         if ( args[args.length-1].endsWith('%') ) {
             discount = 1 - (parseInt(args.pop()) *  0.01);
-            if (discount < 0.8) {
+            if (discount < 0.7) {
                 bot.sendMessage({
                     to: channelID,
                     message: 'That discount is absurd! Are you even playing Clash of Clans??'

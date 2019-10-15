@@ -1369,10 +1369,11 @@ function endwar(auth) {
 
     sheets.spreadsheets.get({
         spreadsheetId: SPREADSHEET_ID,
-        ranges:[ warsheet+'!G1:G4'],
+        ranges:[ warsheet+'!G1:G4', warsheet+'!A2'],
         includeGridData: true
     }, (err, res) => {
         var lastWarLog = res.data.sheets[0].data[0].rowData;
+        var warStats = res.data.sheets[0].data[1].rowData.values[0].formattedValue;
         
         var clanTagCell = lastWarLog[1].values[0];
         var lastOpponentTag = "";
@@ -1606,7 +1607,7 @@ function notify(auth) {
     }
 }
 
-function _notify(err, res, channelID, cwl) { 
+function _notify(err, res, channelID, clanFamilyPrefs, cwl) { 
     if (err) {
         logger.warn('The Google API returned an error: ' + err);
         bot.sendMessage({

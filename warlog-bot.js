@@ -1373,7 +1373,9 @@ function endwar(auth) {
         includeGridData: true
     }, (err, res) => {
         var lastWarLog = res.data.sheets[0].data[0].rowData;
-        var warStats = res.data.sheets[0].data[1].rowData.values[0].formattedValue;
+        var warStats = res.data.sheets[0].data[1].rowData[0].values[0].formattedValue;
+        var wins = parseInt(warStats.split('/')[0]);
+        var losses = parseInt(warStats.split('/')[1]);
         
         var clanTagCell = lastWarLog[1].values[0];
         var lastOpponentTag = "";
@@ -1395,8 +1397,12 @@ function endwar(auth) {
         }
         
         var bgColor = WIN_COLOR;
-        if (result.toUpperCase() == "L" || result.toUpperCase() == "LOSS")
+        if (result.toUpperCase() == "L" || result.toUpperCase() == "LOSS") {
             bgColor = LOSS_COLOR;
+            losses += 1;
+        } else {
+            wins += 1;
+        }
         var endWarReq = {
             spreadsheetId: SPREADSHEET_ID,
             resource: {
@@ -1446,6 +1452,24 @@ function endwar(auth) {
                             "startColumnIndex": 6,
                             "endRowIndex": 4,
                             "endColumnIndex": 7
+                        }
+                    }
+                },{
+                    "updateCells": {
+                        "rows": [{
+                            "values": [{
+                                "userEnteredValue": {
+                                    "stringValue": `${wins} / ${losses}`
+                                }
+                            }]
+                        }],
+                        "fields": "userEnteredValue/stringValue",
+                        "range": {
+                            "sheetId": sheetId,
+                            "startRowIndex": 1,
+                            "startColumnIndex": 0,
+                            "endRowIndex": 2,
+                            "endColumnIndex": 1
                         }
                     }
                 }],

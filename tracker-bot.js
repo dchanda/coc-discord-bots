@@ -167,7 +167,7 @@ bot.on('ready', function (evt) {
     setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
-    scheduler.scheduleJob('0 17 * * *', announceTraderCycle);
+    scheduler.scheduleJob('5 17 * * *', announceTraderCycle);
 });
 
 bot.on('any', function(event) {
@@ -225,7 +225,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
                 researchInfo(channelID, args, true);
                 break;
             case 'trader':
-                announceTraderCycle(channelID);
+                traderCycle(channelID, args);
                 break;
             case 'dates':
                 //if (LEADERS.includes(userID) || OFFICERS.includes(userID))
@@ -234,6 +234,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
             case 'cwlpoll':
                 if (PRIVILEGED_MEMBERS.has(userID))
                     authorize(googleCredentials, cwlpoll);
+                break;
+            case 'timer':
+                if (PRIVILEGED_MEMBERS.has(userID))
+                    timerComment(channelID, args);
                 break;
             case 'uploadcwldata':
                 if (PRIVILEGED_MEMBERS.has(userID))
@@ -300,9 +304,19 @@ function cacheUserRoles(server) {
     }
 }
 
-function announceTraderCycle(channelID) {
-    if (arguments.length == 0) {
-        channelID = BOT_PRIV_ANNOUNCE_CHANNELID;
+
+function timerComment(channelID, args) {
+    
+}
+
+function announceTraderCycle() {
+    traderCycle(BOT_PRIV_ANNOUNCE_CHANNELID, []);
+}
+
+function traderCycle(channelID, args) {
+    var addDays = 0;
+    if (args.length > 0) {
+        addDays = parseInt(args[0]);
     }
     authorize(googleCredentials, (auth) => {
         const sheets = google.sheets({version: 'v4', auth});
@@ -325,7 +339,7 @@ function announceTraderCycle(channelID) {
 
             var cycleStartDate = moment(traderData[0][4], 'YYYYMMDDTHHmmss.SSSZ');
             var duration = moment.duration(moment().diff(cycleStartDate));
-            var step = duration.days();
+            var step = duration.days() + addDays;
             if (duration.hours() > 0 || duration.minutes() > 0 || duration.seconds() > 0) {
                 step += 1;
             }

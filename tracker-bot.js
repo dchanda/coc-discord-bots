@@ -164,7 +164,7 @@ bot.on('ready', function (evt) {
     setInterval(function() {
         uploadcwldata();
     }, 300000);
-    setTimeout(announceUpgrades, 2000);
+    //setTimeout(announceUpgrades, 2000);
     scheduler.scheduleJob('0 0,8,12,16,20 * * *', announceUpgrades);
     scheduler.scheduleJob('0 8 * * *', checkClanJoinDates);
     scheduler.scheduleJob('5 17 * * *', announceTraderCycle);
@@ -1485,7 +1485,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel) {
         to: discordUserId,
         embed: {
             color: 13683174,
-            description: 'CWL for October is starting on the 1st of October.',
+            description: 'CWL for November is starting on the 1st of November.',
             footer: { 
                 text: '© Almost Divorced Clan'
             },
@@ -1494,7 +1494,7 @@ function firstMessage(discordUserId, name, playerTag, townhallLevel) {
             },
             title: '  ⚔ Clan War Leagues ⚔  RSVP',
             fields: [{
-                name: 'First Battle Day is October 2nd',
+                name: 'First Battle Day is November 2nd',
                 value: '`⚔`'
             }, {
                 name: 'Will   '+playerStr+'   be participating?',

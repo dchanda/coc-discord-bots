@@ -571,6 +571,7 @@ function help(channelID) {
 
 function startCWLThread(clanTag, auth) {
     var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+    if (clanFamilyPrefs.cwlWarTagRow == -1) return;
     if (!("cwlInterval" in clanFamilyPrefs) || clanFamilyPrefs.cwlInterval==null) {
         clanFamilyPrefs["cwlInterval"] = setInterval(function() {
             authorize(googleCredentials, fetchAndUpdateCWLLog.bind({clanTag: clanTag}));
@@ -581,6 +582,7 @@ function startCWLThread(clanTag, auth) {
 
 function endCWLThread(clanTag) {
     var clanFamilyPrefs = CLAN_FAMILY[clanTag];
+    if (clanFamilyPrefs.cwlWarTagRow == -1) return;
     if ("cwlInterval" in clanFamilyPrefs && clanFamilyPrefs['cwlInterval']) {
         clearInterval(clanFamilyPrefs.cwlInterval);
         clanFamilyPrefs.cwlInterval = null;
@@ -672,7 +674,7 @@ function _updateCWLLog(sheets, clanTag) {
         //Get Player Tags in CWL for updating scores.
         sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'CWL!B' + (clanFamilyPrefs.cwlWarTagRow+2) + ':L' + (clanFamilyPrefs.cwlWarTagRow+25),
+            range: 'CWL!B' + (clanFamilyPrefs.cwlWarTagRow+2) + ':L' + (clanFamilyPrefs.cwlWarTagRow+100),
         }, (err, res) => {
             if (err) {
                 console.log(err);
@@ -693,7 +695,8 @@ function _updateCWLLog(sheets, clanTag) {
                 if ("attacks" in member) {
                     var memberIdx = search2D(sheetCWLData, 0, member.tag);
                     var attack = member["attacks"][0];
-                    scoresArray[memberIdx][0] = attack.stars;
+                    if (memberIdx > -1)
+                        scoresArray[memberIdx][0] = attack.stars;
                 }
             });
             var updateData = [];
